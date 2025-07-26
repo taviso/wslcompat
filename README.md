@@ -11,7 +11,7 @@ The idea is to patch binaries that use unimplemented functionality with
 - `getsockopt(SO_PROTOCOL)` is unimplemented for `AF_UNIX`
 - `getsockopt(SO_DOMAIN)` is unimplemented for `AF_UNIX`
 - `mincore()` is unimplemented
-- `F_OFD_SETLK`/``F_OFD_GETLK` is unimplemented.
+- `F_OFD_SETLK`/`F_OFD_GETLK` is unimplemented.
 
 ## Building
 
