@@ -1,0 +1,14 @@
+The main difference between OFD.. etc and the traditional locks is because the
+ofd locks are associated with descriptors and not processes, they work with
+threads.
+
+Solution:
+
+    If someone opens an OFD lock, replace read(), write() with code that does GETLK?
+
+It will be slow, but work?
+
+Could also use flock() system call instead?
+
+What system calls check flocks?
+    
