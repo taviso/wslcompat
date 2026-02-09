@@ -12,6 +12,7 @@ The idea is to patch binaries that use unimplemented functionality with
 - `getsockopt(SO_DOMAIN)` is unimplemented for `AF_UNIX`
 - `mincore()` is unimplemented
 - `F_OFD_SETLK`/`F_OFD_GETLK` is unimplemented.
+- `TCGETS2` is unimplemented, so `isatty()` and `tcgetattr()` should use `TCGETS`.
 
 ## Building
 
