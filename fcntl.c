@@ -16,15 +16,8 @@ static void __attribute__((constructor)) init(void)
     return;
 }
 
-int fcntl(int fd, int cmd, ...)
+static int fcntl_common(int (*real_fcntl)(int, int, ...), int fd, int cmd, void *arg)
 {
-    va_list ap;
-    void *arg;
-
-    va_start(ap, cmd);
-    arg = va_arg(ap, void *);
-    va_end(ap);
-
     switch (cmd) {
         case F_OFD_SETLK:   cmd = F_SETLK;
                             break;
@@ -34,7 +27,19 @@ int fcntl(int fd, int cmd, ...)
                             break;
     }
 
-    return sym_fcntl(fd, cmd, arg);
+    return real_fcntl(fd, cmd, arg);
+}
+
+int fcntl(int fd, int cmd, ...)
+{
+    va_list ap;
+    void *arg;
+
+    va_start(ap, cmd);
+    arg = va_arg(ap, void *);
+    va_end(ap);
+
+    return fcntl_common(sym_fcntl, fd, cmd, arg);
 }
 
 int fcntl64(int fd, int cmd, ...)
@@ -46,14 +51,5 @@ int fcntl64(int fd, int cmd, ...)
     arg = va_arg(ap, void *);
     va_end(ap);
 
-    switch (cmd) {
-        case F_OFD_SETLK:   cmd = F_SETLK;
-                            break;
-        case F_OFD_SETLKW:  cmd = F_SETLKW;
-                            break;
-        case F_OFD_GETLK:   cmd = F_GETLK;
-                            break;
-    }
-
-    return sym_fcntl64(fd, cmd, arg);
+    return fcntl_common(sym_fcntl64, fd, cmd, arg);
 }
