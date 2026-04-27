@@ -10,6 +10,7 @@ The idea is to patch binaries that use unimplemented functionality with
 - `MAP_FIXED_NOREPLACE` is unimplemented
 - `getsockopt(SO_PROTOCOL)` is unimplemented for `AF_UNIX`
 - `getsockopt(SO_DOMAIN)` is unimplemented for `AF_UNIX`
+- `getsockopt(SO_TIMESTAMP)` is unimplemented for `AF_UNIX`
 - `mincore()` is unimplemented
 - `F_OFD_SETLK`/`F_OFD_GETLK` is unimplemented.
 - `VMIN` and `VTIME` are ignored by non-canonical terminals.

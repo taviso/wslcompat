@@ -1,6 +1,7 @@
 CFLAGS=-fPIC
-LDLIBS=-ldl
+LDLIBS=-ldl -lrt -lpthread
 PREFIX=/usr/local
+LDFLAGS=-Wl,-z,interpose,-z,initfirst
 
 all: libwslcompat.so
 
@@ -11,10 +12,10 @@ all: libwslcompat.so
 	gcc -c $(CFLAGS) $(CPPFLAGS) -o $@ $^
 
 libwslcompat.so: getsockopt.o  mmap.o fcntl.o ioctl.o
-	gcc -shared $(CFLAGS) -o $@ $^ $(LDLIBS)
+	gcc -shared $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 libwslcompat32.so: getsockopt32.o  mmap32.o fcntl32.o ioctl32.o
-	gcc -shared $(CFLAGS) -m32 -o $@ $^ $(LDLIBS)
+	gcc -shared $(CFLAGS) $(LDFLAGS) -m32 -o $@ $^ $(LDLIBS)
 
 install: libwslcompat.so
 	install $< $(PREFIX)/lib
