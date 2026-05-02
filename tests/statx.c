@@ -9,6 +9,7 @@
 #include <err.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 
 #ifndef STATX_ATTR_MOUNT_ROOT
 # define STATX_ATTR_MOUNT_ROOT 0x2000
@@ -45,7 +46,7 @@ int main() {
     printf("--- Testing /etc/passwd ---\n");
 
     if (statx(AT_FDCWD, "/etc/passwd", 0, STATX_BASIC_STATS | STATX_MNT_ID, &stx) != 0) {
-        errx(EXIT_FAILURE, "statx failed");
+        err(EXIT_FAILURE, "statx failed");
     }
 
     //check_stx_mask(&stx, "STATX_TYPE", STATX_TYPE);
@@ -74,7 +75,7 @@ int main() {
     printf("--- Testing / ---\n");
 
     if (statx(AT_FDCWD, "/", 0, STATX_MNT_ID, &stx) != 0) {
-        errx(EXIT_FAILURE, "statx failed");
+        err(EXIT_FAILURE, "statx failed");
     }
 
     if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == false) {
@@ -84,7 +85,7 @@ int main() {
     printf("--- Testing /mnt/c ---\n");
 
     if (statx(AT_FDCWD, "/mnt/c", 0, STATX_BASIC_STATS | STATX_MNT_ID, &stx) != 0) {
-        errx(EXIT_FAILURE, "statx failed");
+        err(EXIT_FAILURE, "statx failed");
     }
 
     if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == false) {
@@ -94,7 +95,7 @@ int main() {
     printf("--- Testing /etc ---\n");
 
     if (statx(AT_FDCWD, "/etc", 0, STATX_MNT_ID, &stx) != 0) {
-        errx(EXIT_FAILURE, "statx failed");
+        err(EXIT_FAILURE, "statx failed");
     }
 
     if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == true) {
