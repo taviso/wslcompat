@@ -6,9 +6,9 @@ VGFLAGS = --quiet --error-exitcode=2
 
 .PHONY: clean test
 
-TESTS = mmap statx
+TESTS = mmap statx sockaddr
 
-test: $(addprefix chk_,$(TESTS))
+test: $(addprefix chk_,$(TESTS)) | ../libwslcompat.so
 
 # Check that the unmodified test fails, and the patched one succeeds.
 chk_%: sys_% fix_% pre_% val_%
