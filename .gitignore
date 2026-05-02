@@ -2,3 +2,6 @@
 *.so
 a.out
 .*.sw?
+tests/fix_*
+tests/sys_*
+*.log
