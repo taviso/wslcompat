@@ -6,7 +6,7 @@ VGFLAGS = --quiet --error-exitcode=2
 
 .PHONY: clean test
 
-TESTS = mmap statx sockaddr
+TESTS = mmap statx sockaddr socktest
 
 test: $(addprefix chk_,$(TESTS)) | ../libwslcompat.so
 
@@ -36,6 +36,9 @@ val_%: fix_%
 # Generate a log of what happens.
 %.log: sys_% | ../libwslcompat.so
 	strace -E LD_PRELOAD=../libwslcompat.so -o $@ $(addprefix ./,$(word 1, $^))
+
+chk_%: %.py | ../libwslcompat.so
+	env LD_PRELOAD=../libwslcompat.so python $<
 
 clean:
 	rm -f *.o *.log $(addprefix sys_, $(TESTS)) $(addprefix fix_, $(TESTS))
