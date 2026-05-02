@@ -41,7 +41,7 @@ val_%: fix_%
 	strace -E LD_PRELOAD=../libwslcompat.so -o $@ $(addprefix ./,$(word 1, $^))
 
 chk_%: %.py | ../libwslcompat.so
-	env LD_PRELOAD=../libwslcompat.so python $<
+	env LD_PRELOAD=../libwslcompat.so python3 $<
 
 clean:
 	rm -f a.out *.o *.log fix_* sys_*
