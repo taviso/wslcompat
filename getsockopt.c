@@ -42,6 +42,7 @@ int getsockopt(int sockfd,
 
     // Okay, see if this is one we can easily emulate.
     if (optname == SO_DOMAIN && *optlen >= sizeof(sa.sa_family)) {
+        memset(optval, 0, *optlen);
         memcpy(optval, &sa.sa_family, sizeof sa.sa_family);
         return 0;
     }
