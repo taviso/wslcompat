@@ -14,6 +14,7 @@ The idea is to patch binaries that use unimplemented functionality with
 - `mincore()` is unimplemented
 - `F_OFD_SETLK`/`F_OFD_GETLK` is unimplemented.
 - `VMIN` and `VTIME` are ignored by non-canonical terminals.
+- `STATX_MNT_ID` is unimplemented.
 
 ## Building
 

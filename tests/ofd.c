@@ -17,8 +17,8 @@ int main() {
         .l_pid    = 0,
     };
 
-    fd1 = mkstemp(tmpfile);
-    fd2 = dup(fd1);
+    fd1 = mkostemp(tmpfile, O_RDWR);
+    fd2 = open(tmpfile, O_RDWR);
 
     unlink(tmpfile);
 

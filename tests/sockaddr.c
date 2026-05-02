@@ -52,6 +52,22 @@ int main(int argc, char **argv) {
         printf("SO_TYPE for AF_UNIX socket: %d\n", protocol);
     }
 
+    // Check SO_TIMESTAMP
+    int timestamp;
+    len = sizeof(timestamp);
+    if (getsockopt(fd, SOL_SOCKET, SO_TIMESTAMP, &timestamp, &len) == -1) {
+        perror("getsockopt SO_TIMESTAMP");
+    } else {
+        printf("SO_TIMESTAMP is %d\n", timestamp);
+    }
+
+    timestamp = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_TIMESTAMP, &timestamp, sizeof(timestamp)) == -1) {
+        perror("setsockopt SO_TIMESTAMP");
+    } else {
+        printf("Successfully set SO_TIMESTAMP to 1\n");
+    }
+
     close(fd);
     return 0;
 }
