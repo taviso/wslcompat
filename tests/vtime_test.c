@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <errno.h>
+#include <err.h>
 
 void handle_alarm(int sig) {
     fprintf(stderr, "\nFAIL: read() blocked indefinitely. Kernel ignores VTIME.\n");
@@ -44,7 +45,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // 1. Check if the kernel stores the state (viable for stateless shim)
+    // Check if the kernel stores the state (viable for stateless shim)
     struct termios t_check = {0};
     if (ioctl(fd, TCGETS, &t_check) < 0) {
         perror("TCGETS validation");
@@ -59,7 +60,7 @@ int main(int argc, char *argv[]) {
                t_check.c_cc[VMIN], t_check.c_cc[VTIME]);
     }
 
-    // 2. Check if the kernel actually honors the read timeout
+    // Check if the kernel actually honors the read timeout
     struct sigaction sa = { .sa_handler = handle_alarm };
     sigaction(SIGALRM, &sa, NULL);
     alarm(2); 
@@ -82,7 +83,7 @@ int main(int argc, char *argv[]) {
     if (elapsed_ms >= 400 && elapsed_ms <= 600) {
         printf("READ PASS: Kernel honors VTIME during read().\n");
     } else {
-        printf("READ FAIL: Kernel returns prematurely or ignores VTIME.\n");
+        err(EXIT_FAILURE, "READ FAIL: Kernel returns prematurely or ignores VTIME.\n");
     }
 
     close(fd);
