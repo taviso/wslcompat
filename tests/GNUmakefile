@@ -6,9 +6,12 @@ VGFLAGS = --quiet --error-exitcode=2
 
 .PHONY: clean test
 
-TESTS = mmap statx sockaddr socktest vtime_test
+TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup
 
 test: $(addprefix chk_,$(TESTS)) | ../libwslcompat.so
+	@echo ====================
+	@echo = ALL TESTS PASSED =
+	@echo ====================
 
 # Check that the unmodified test fails, and the patched one succeeds.
 chk_%: sys_% fix_% pre_% val_%
