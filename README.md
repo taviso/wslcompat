@@ -25,7 +25,7 @@ $ patchelf --add-needed /usr/local/lib/libwslcompat.so $(which program)
 
 > Note: The `patchelf` utility is available in most package managers.
 
-If this doesn't fix your binary, or causes any issues, please open an issue.
+If this doesn't fix your binary, or causes any problems, please open an issue.
 
 ## Testing
 
