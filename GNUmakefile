@@ -11,10 +11,10 @@ all: libwslcompat.so
 %32.o: %.c
 	gcc -c $(CFLAGS) $(CPPFLAGS) -o $@ $^
 
-libwslcompat.so: getsockopt.o  mmap.o fcntl.o ioctl.o stat.o
+libwslcompat.so: getsockopt.o  mmap.o fcntl.o ioctl.o statx.o mincore.o
 	gcc -shared $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-libwslcompat32.so: getsockopt32.o  mmap32.o fcntl32.o ioctl32.o stat32.o
+libwslcompat32.so: getsockopt32.o  mmap32.o fcntl32.o ioctl32.o statx32.o mincore32.o
 	gcc -shared $(CFLAGS) $(LDFLAGS) -m32 -o $@ $^ $(LDLIBS)
 
 install: libwslcompat.so

@@ -45,8 +45,12 @@ int main() {
 
     printf("--- Testing /etc/passwd ---\n");
 
-    if (statx(AT_FDCWD, "/etc/passwd", 0, STATX_BASIC_STATS | STATX_MNT_ID, &stx) != 0) {
+    if (statx(AT_FDCWD, "/etc/passwd", 0, STATX_BASIC_STATS | STATX_MNT_ID | STATX_BTIME, &stx) != 0) {
         err(EXIT_FAILURE, "statx failed");
+    }
+
+    if (check_stx_mask(&stx, "STATX_BTIME", STATX_BTIME) == false) {
+        err(EXIT_FAILURE, "requested btime but was not provided");
     }
 
     //check_stx_mask(&stx, "STATX_TYPE", STATX_TYPE);

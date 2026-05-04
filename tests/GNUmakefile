@@ -2,26 +2,33 @@ CFLAGS = -O0 -ggdb3
 LDFLAGS =
 CPPFLAGS =
 LDLIBS =
-VGFLAGS = --quiet --error-exitcode=2
+VGFLAGS = --quiet --error-exitcode=2 --suppressions=valgrind.supp
 
 .PHONY: clean test
 
-TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup
+# These tests should all pass.
+TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup mincore
 
-test: $(addprefix chk_,$(TESTS)) | ../libwslcompat.so
+# These test are expected failures (may implement in future).
+XFAIL = name_to_handle_at memfd_create
+
+test: $(addprefix chk_,$(TESTS)) $(addprefix xfl_,$(XFAIL)) | ../libwslcompat.so
 	@echo ====================
 	@echo = ALL TESTS PASSED =
 	@echo ====================
 
-# Check that the unmodified test fails, and the patched one succeeds.
-chk_%: sys_% fix_% pre_% val_%
+# Check that the patched syscalls succeed.
+chk_%: fix_% xfl_% pre_% val_%
+	$(addprefix ./, $<)
+
+# Check that the unpatches syscalls fail
+xfl_%: sys_%
 	@echo NOTE: ERRORS EXPECTED BELOW
 	@echo ===========================
-	! $(addprefix ./,$(word 1, $^))
+	! $(addprefix ./, $<)
 	@echo ===========================
-	$(addprefix ./,$(word 2, $^))
 
-# Also check that it works as a preload library.
+# All fixes should also work as a preload library.
 pre_%: sys_% | ../libwslcompat.so
 	env LD_PRELOAD=../libwslcompat.so $(addprefix ./,$<)
 

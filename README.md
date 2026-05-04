@@ -45,4 +45,5 @@ Type `make test` to run them.
 - `VMIN` and `VTIME` are ignored by non-canonical terminals.
 - `STATX_MNT_ID` is unimplemented.
 - `STATX_ATTR_MOUNT_ROOT` is unimplemented.
+- `STATX_BTIME` is unimplemented.
 

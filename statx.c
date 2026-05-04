@@ -77,7 +77,8 @@ int statx(int dirfd, const char *pathname, int flags,
           unsigned int mask, struct statx *statxbuf) {
     // Pass through the call to glibc.
     // We force STATX_INO and STATX_TYPE so is_mount_root can reuse them.
-    int ret = sym_statx(dirfd, pathname, flags, mask | STATX_INO | STATX_TYPE, statxbuf);
+    // We also force STATX_MTIME and STATX_CTIME for BTIME polyfill.
+    int ret = sym_statx(dirfd, pathname, flags, mask | STATX_INO | STATX_TYPE | STATX_MTIME | STATX_CTIME, statxbuf);
 
     // If it failed, no need to do anything.
     if (ret != 0)
@@ -103,11 +104,30 @@ int statx(int dirfd, const char *pathname, int flags,
         statxbuf->stx_attributes_mask |= STATX_ATTR_MOUNT_ROOT;
     }
 
+    // Polyfill STATX_BTIME if requested but missing
+    if ((mask & STATX_BTIME) && !(statxbuf->stx_mask & STATX_BTIME)) {
+        if ((statxbuf->stx_mask & STATX_MTIME) && (statxbuf->stx_mask & STATX_CTIME)) {
+            // Use the earlier of mtime or ctime as a birth time heuristic.
+            if (statxbuf->stx_mtime.tv_sec < statxbuf->stx_ctime.tv_sec ||
+               (statxbuf->stx_mtime.tv_sec == statxbuf->stx_ctime.tv_sec &&
+                statxbuf->stx_mtime.tv_nsec < statxbuf->stx_ctime.tv_nsec)) {
+                statxbuf->stx_btime = statxbuf->stx_mtime;
+            } else {
+                statxbuf->stx_btime = statxbuf->stx_ctime;
+            }
+            statxbuf->stx_mask |= STATX_BTIME;
+        }
+    }
+
     // Restore the mask to what the user actually requested.
     if (!(mask & STATX_INO))
         statxbuf->stx_mask &= ~STATX_INO;
     if (!(mask & STATX_TYPE))
         statxbuf->stx_mask &= ~STATX_TYPE;
+    if (!(mask & STATX_MTIME))
+        statxbuf->stx_mask &= ~STATX_MTIME;
+    if (!(mask & STATX_CTIME))
+        statxbuf->stx_mask &= ~STATX_CTIME;
 
     return ret;
 }
