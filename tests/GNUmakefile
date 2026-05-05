@@ -7,7 +7,8 @@ VGFLAGS = --quiet --error-exitcode=2 --suppressions=valgrind.supp
 .PHONY: clean test
 
 # These tests should fail without libwslcompat, and then pass when with.
-TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup mincore init_order
+TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup mincore   \
+        init_order multiproc
 
 # These test are expected failures (may implement in future).
 XFAIL = name_to_handle_at memfd_create
