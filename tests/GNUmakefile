@@ -1,28 +1,45 @@
 CFLAGS = -O0 -ggdb3
 LDFLAGS =
 CPPFLAGS =
-LDLIBS =
+LDLIBS = -lrt
 VGFLAGS = --quiet --error-exitcode=2 --suppressions=valgrind.supp
 
-.PHONY: clean test
+.PHONY: clean test linux
 
 # These tests should fail without libwslcompat, and then pass when with.
 TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup ofd mincore \
         init_order multiproc
 
 # These test are expected failures (may implement in future).
-XFAIL = name_to_handle_at memfd_create ofd_partial kcmp_test
+XFAIL = name_to_handle_at memfd_create ofd_partial kcmp_test ofd_flock_conflict
 
-test: $(addprefix chk_,$(TESTS)) $(addprefix xfl_,$(XFAIL)) ../libwslcompat.so
+# These tests should pass both with and without the shim.
+XPASS = shm_test inode_test flock_vs_fcntl fcntl_close_wipe
+
+test: $(addprefix chk_,$(TESTS)) $(addprefix xfl_,$(XFAIL)) $(addprefix xps_,$(XPASS)) ../libwslcompat.so
 	@echo ====================
 	@echo = ALL TESTS PASSED =
 	@echo ====================
+
+linux: $(addprefix lin_,$(TESTS) $(XFAIL) $(XPASS))
+	@echo ====================
+	@echo = ALL TESTS PASSED =
+	@echo ====================
+
+# Check that the unpatched syscalls succeed on native linux.
+lin_%: sys_%
+	$(addprefix ./, $<)
 
 # Check that the patched syscalls succeed.
 chk_%: fix_% xfl_% pre_% val_%
 	$(addprefix ./, $<)
 
-# Check that the unpatches syscalls fail
+# Check that both patched and unpatched syscalls succeed.
+xps_%: sys_% fix_% pre_% val_%
+	$(addprefix ./, $(word 1, $^))
+	$(addprefix ./, $(word 2, $^))
+
+# Check that the unpatched syscalls fail
 xfl_%: sys_%
 	@echo NOTE: ERRORS EXPECTED BELOW
 	@echo ===========================
@@ -54,7 +71,7 @@ chk_%: %.py ../libwslcompat.so
 # The ELF initialization order test.
 sys_init_order: init_lib.o init_order.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -shared -o $@.so $(word 1, $^) $(LDLIBS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(word 2, $^) $@.so -Wl,-rpath,'$$ORIGIN'
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(word 2, $^) $@.so -Wl,-rpath,'$$ORIGIN' $(LDLIBS)
 
 clean:
 	rm -f a.out *.o *.log fix_* sys_*
