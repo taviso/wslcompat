@@ -1,5 +1,5 @@
 CFLAGS=-fPIC -O2
-LDLIBS=-ldl -lrt -lpthread
+LDLIBS=-ldl
 PREFIX=/usr/local
 LDFLAGS=-Wl,-z,interpose,-z,initfirst
 
