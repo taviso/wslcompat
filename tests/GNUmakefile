@@ -68,6 +68,9 @@ val_%: fix_%
 chk_%: %.py ../libwslcompat.so
 	env LD_PRELOAD=../libwslcompat.so python3 $<
 
+lin_%: %.py
+	python3 $<
+
 # The ELF initialization order test.
 sys_init_order: init_lib.o init_order.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -shared -o $@.so $(word 1, $^) $(LDLIBS)

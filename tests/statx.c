@@ -109,14 +109,18 @@ int main() {
 
     printf("--- Testing /mnt/c ---\n");
 
-    if (statx(AT_FDCWD, "/mnt/c", 0, STATX_BASIC_STATS | STATX_MNT_ID, &stx) != 0) {
-        err(EXIT_FAILURE, "statx failed");
-    }
+    if (access("/mnt/c", F_OK) == 0) {
+        if (statx(AT_FDCWD, "/mnt/c", 0, STATX_BASIC_STATS | STATX_MNT_ID, &stx) != 0) {
+            err(EXIT_FAILURE, "statx failed");
+        }
 
-    verify_mnt_id(&stx);
+        verify_mnt_id(&stx);
 
-    if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == false) {
-        errx(EXIT_FAILURE, "expected /mnt/c to be a mount point");
+        if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == false) {
+            errx(EXIT_FAILURE, "expected /mnt/c to be a mount point");
+        }
+    } else {
+        printf("skipping /mnt/c test, directory not found\n");
     }
 
     printf("--- Testing /etc ---\n");
