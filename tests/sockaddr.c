@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
     if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &len) == -1) {
         err(EXIT_FAILURE, "getsockopt SO_TYPE failed");
     } else {
-        printf("SO_TYPE for AF_UNIX socket: %d\n", protocol);
+        printf("SO_TYPE for AF_UNIX socket: %d\n", type);
     }
 
 #if 0
