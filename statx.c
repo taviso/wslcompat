@@ -12,27 +12,66 @@
 #include <stdint.h>
 #include <limits.h>
 
+// A cached file descriptor to /proc/self/mountinfo
+static int mount_fd = -1;
+
 static int (*sym_statx)(int dirfd, const char *pathname, int flags,
                         unsigned int mask, struct statx *statxbuf);
 
+static void __attribute__((destructor)) fini(void) {
+    close(mount_fd);
+}
+
 static uint64_t lookup_mnt_id(uint32_t maj, uint32_t min) {
-    FILE *fp = fopen("/proc/self/mountinfo", "re");
-    unsigned long long id, m, n;
+    char buf[8192];
+    char *curr = buf;
+    ssize_t n;
 
-    // If that failed, we can't check.
-    if (fp == NULL)
-        return 0;
+    // Thread-safe lazy open.
+    if (__builtin_expect(mount_fd == -1, 0)) {
+        int fd = open("/proc/self/mountinfo", O_RDONLY | O_CLOEXEC);
 
-    // Find the matching mount.
-    while (fscanf(fp, "%llu %*u %llu:%llu %*[^\n] ", &id, &m, &n) == 3) {
-        if (m == maj && n == min) {
-            fclose(fp);
-            return id;
+        if (fd == -1) return 0;
+
+        if (!__sync_bool_compare_and_swap(&mount_fd, -1, fd)) {
+            close(fd);
         }
     }
 
-    // No match
-    fclose(fp);
+    // pread is atomic and does not share an offset with other threads.
+    if ((n = pread(mount_fd, buf, sizeof(buf) - 1, 0)) <= 0)
+        return 0;
+
+    buf[n] = '\0';
+
+    while (curr && *curr) {
+        char *p;
+        uint64_t id;
+        uint32_t r_maj, r_min;
+
+        // The format is: mnt_id parent_id major:minor ...
+        id = strtoul(curr, &p, 10);
+
+        // Skip over parent_id
+        strtoul(p, &p, 10);
+
+        r_maj = strtoul(p, &p, 10);
+
+        // Skip over ':'
+        if (*p++ != ':')
+            return 0;
+
+        r_min = strtoul(p, &p, 10);
+
+        if (r_maj == maj && r_min == min) {
+            return id;
+        }
+
+        // Advance to the next line
+        if ((curr = strchr(p, '\n')))
+            curr++;
+    }
+
     return 0;
 }
 

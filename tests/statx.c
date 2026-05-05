@@ -40,6 +40,36 @@ int check_stx_attribute(struct statx *stx, const char *name, uint64_t flag)
     return 0;
 }
 
+uint64_t get_expected_mnt_id(uint32_t major, uint32_t minor)
+{
+    FILE *fp = fopen("/proc/self/mountinfo", "re");
+    unsigned long long id;
+    unsigned int m, n;
+
+    if (!fp) return 0;
+
+    while (fscanf(fp, "%llu %*u %u:%u %*[^\n] ", &id, &m, &n) == 3) {
+        if (m == major && n == minor) {
+            fclose(fp);
+            return id;
+        }
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+void verify_mnt_id(struct statx *stx)
+{
+    uint64_t expected = get_expected_mnt_id(stx->stx_dev_major, stx->stx_dev_minor);
+
+    if (stx->stx_mnt_id != expected) {
+        errx(EXIT_FAILURE, "stx_mnt_id mismatch: expected %llu, got %llu", 
+             (unsigned long long)expected, (unsigned long long)stx->stx_mnt_id);
+    }
+    printf("stx_mnt_id verified: %llu\n", (unsigned long long)stx->stx_mnt_id);
+}
+
 int main() {
     struct statx stx = {0};
 
@@ -53,24 +83,13 @@ int main() {
         err(EXIT_FAILURE, "requested btime but was not provided");
     }
 
-    //check_stx_mask(&stx, "STATX_TYPE", STATX_TYPE);
-    //check_stx_mask(&stx, "STATX_MODE", STATX_MODE);
-    //check_stx_mask(&stx, "STATX_NLINK", STATX_NLINK);
-    //check_stx_mask(&stx, "STATX_UID", STATX_UID);
-    //check_stx_mask(&stx, "STATX_GID", STATX_GID);
-    //check_stx_mask(&stx, "STATX_ATIME", STATX_ATIME);
-    //check_stx_mask(&stx, "STATX_MTIME", STATX_MTIME);
-    //check_stx_mask(&stx, "STATX_CTIME", STATX_CTIME);
-    //check_stx_mask(&stx, "STATX_INO", STATX_INO);
-    //check_stx_mask(&stx, "STATX_SIZE", STATX_SIZE);
-    //check_stx_mask(&stx, "STATX_BLOCKS", STATX_BLOCKS);
-    //check_stx_mask(&stx, "STATX_BTIME", STATX_BTIME);
-
     check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT);
 
     if (check_stx_mask(&stx, "STATX_MNT_ID", STATX_MNT_ID) == false) {
         err(EXIT_FAILURE, "requested mnt id but was not provided");
     }
+
+    verify_mnt_id(&stx);
 
     if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == true) {
         errx(EXIT_FAILURE, "did not expect /etc/passwd to be amount point");
@@ -82,6 +101,8 @@ int main() {
         err(EXIT_FAILURE, "statx failed");
     }
 
+    verify_mnt_id(&stx);
+
     if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == false) {
         errx(EXIT_FAILURE, "expected / to be a mount point");
     }
@@ -92,6 +113,8 @@ int main() {
         err(EXIT_FAILURE, "statx failed");
     }
 
+    verify_mnt_id(&stx);
+
     if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == false) {
         errx(EXIT_FAILURE, "expected /mnt/c to be a mount point");
     }
@@ -101,6 +124,8 @@ int main() {
     if (statx(AT_FDCWD, "/etc", 0, STATX_MNT_ID, &stx) != 0) {
         err(EXIT_FAILURE, "statx failed");
     }
+
+    verify_mnt_id(&stx);
 
     if (check_stx_attribute(&stx, "STATX_ATTR_MOUNT_ROOT", STATX_ATTR_MOUNT_ROOT) == true) {
         errx(EXIT_FAILURE, "did not expect /etc to be a mount point");
