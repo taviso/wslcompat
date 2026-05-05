@@ -7,11 +7,11 @@ VGFLAGS = --quiet --error-exitcode=2 --suppressions=valgrind.supp
 .PHONY: clean test
 
 # These tests should fail without libwslcompat, and then pass when with.
-TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup mincore   \
+TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup ofd mincore \
         init_order multiproc
 
 # These test are expected failures (may implement in future).
-XFAIL = name_to_handle_at memfd_create
+XFAIL = name_to_handle_at memfd_create ofd_partial kcmp_test
 
 test: $(addprefix chk_,$(TESTS)) $(addprefix xfl_,$(XFAIL)) ../libwslcompat.so
 	@echo ====================
