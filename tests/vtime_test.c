@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -15,10 +16,31 @@ void handle_alarm(int sig) {
 }
 
 int main(int argc, char *argv[]) {
-    const char *dev = (argc == 2) ? argv[1] : "/dev/ptmx";
-    
-    // Open non-blocking to prevent hanging on carrier detect (e.g., /dev/ttyS0)
-    int fd = open(dev, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    int fd;
+    char *slave_name;
+
+    if (argc == 2) {
+        fd = open(argv[1], O_RDWR | O_NOCTTY | O_NONBLOCK);
+    } else {
+        int master_fd = posix_openpt(O_RDWR | O_NOCTTY);
+        if (master_fd < 0) {
+            perror("posix_openpt");
+            return 1;
+        }
+        if (grantpt(master_fd) < 0 || unlockpt(master_fd) < 0) {
+            perror("grantpt/unlockpt");
+            return 1;
+        }
+        slave_name = ptsname(master_fd);
+        if (!slave_name) {
+            perror("ptsname");
+            return 1;
+        }
+        fd = open(slave_name, O_RDWR | O_NOCTTY | O_NONBLOCK);
+        // We can close the master now, or keep it open.
+        // If we close it, the slave might get a hangup.
+    }
+
     if (fd < 0) {
         perror("open");
         return 1;
