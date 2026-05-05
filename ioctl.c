@@ -21,7 +21,19 @@ static ssize_t (*sym_read)(int fd, void *buf, size_t count);
 
 static uint8_t fd_seen[howmany(MAX_FDS, NBBY)];
 static uint8_t fd_intercept[howmany(MAX_FDS, NBBY)];
-static bool read_intercept;
+static int read_intercept;
+
+static inline void setbit_atomic(uint8_t *a, int i) {
+    __sync_fetch_and_or(&a[i / NBBY], 1 << (i % NBBY));
+}
+
+static inline void clrbit_atomic(uint8_t *a, int i) {
+    __sync_fetch_and_and(&a[i / NBBY], ~(1 << (i % NBBY)));
+}
+
+static inline int isset_atomic(uint8_t *a, int i) {
+    return (__sync_add_and_fetch(&a[i / NBBY], 0) & (1 << (i % NBBY)));
+}
 
 static void __attribute__((constructor)) init(void)
 {
@@ -37,20 +49,20 @@ static void handle_tcset(int fd, struct termios *tio)
         return;
 
     // Record that we know this filedescriptor.
-    setbit(fd_seen, fd);
+    setbit_atomic(fd_seen, fd);
 
     // Check if caller is trying to disable canonical mode.
     if (tio->c_lflag & ICANON) {
         // Canonical mode disabled, make sure we're not hooking this.
-        clrbit(fd_intercept, fd);
+        clrbit_atomic(fd_intercept, fd);
         return;
     }
 
     // Canonical mode enabled, we need to cook any reads.
-    setbit(fd_intercept, fd);
+    setbit_atomic(fd_intercept, fd);
 
     // Make sure read interception is now globally enabled.
-    read_intercept = true;
+    __sync_lock_test_and_set(&read_intercept, 1);
 
     return;
 }
@@ -91,7 +103,7 @@ ssize_t read(int fd, void *buf, size_t count) {
     char *ptr = buf;
 
     // Verify interception is globally enabled.
-    if (read_intercept == false)
+    if (__sync_add_and_fetch(&read_intercept, 0) == 0)
         goto passthru;
 
     // Check if this is an fd we can track.
@@ -99,28 +111,28 @@ ssize_t read(int fd, void *buf, size_t count) {
         goto passthru;
 
     // Check if this is a file descriptor we might be monitoring.
-    if (isset(fd_seen, fd) && isclr(fd_intercept, fd))
+    if (isset_atomic(fd_seen, fd) && !isset_atomic(fd_intercept, fd))
         goto passthru;
 
     // It either isn't seen, or is being monitored.
-    if (isclr(fd_seen, fd) || isset(fd_intercept, fd)) {
+    if (!isset_atomic(fd_seen, fd) || isset_atomic(fd_intercept, fd)) {
         // We now know this fd exists.
-        setbit(fd_seen, fd);
+        setbit_atomic(fd_seen, fd);
 
         // Check if this is a tty
         if (sym_ioctl(fd, TCGETS, &t) != 0) {
             // Not a tty, or not anymore, so we can clear it.
-            clrbit(fd_intercept, fd);
+            clrbit_atomic(fd_intercept, fd);
             goto passthru;
         }
 
         // It is a terminal, so we do need to monitor it.
-        setbit(fd_intercept, fd);
+        setbit_atomic(fd_intercept, fd);
     }
 
     // Check for canonical mode
     if (t.c_lflag & ICANON) {
-        clrbit(fd_intercept, fd);
+        clrbit_atomic(fd_intercept, fd);
         goto passthru;
     }
 

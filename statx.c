@@ -28,7 +28,7 @@ static uint64_t lookup_mnt_id(uint32_t maj, uint32_t min) {
     ssize_t n;
 
     // Thread-safe lazy open.
-    if (__builtin_expect(mount_fd == -1, 0)) {
+    if (__builtin_expect(__sync_add_and_fetch(&mount_fd, 0) == -1, 0)) {
         int fd = open("/proc/self/mountinfo", O_RDONLY | O_CLOEXEC);
 
         if (fd == -1) return 0;
