@@ -14,7 +14,8 @@ int main(int argc, char **argv)
     void *addr;
 
     // Test 1: Valid mapping
-    addr = mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    // We use MAP_LOCKED to ensure it's actually in-core on real linux.
+    addr = mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_LOCKED, -1, 0);
     if (addr == MAP_FAILED) {
         err(EXIT_FAILURE, "mmap");
     }
