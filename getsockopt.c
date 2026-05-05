@@ -1,17 +1,9 @@
 #define _GNU_SOURCE
 #include <sys/socket.h>
+#include <sys/syscall.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <dlfcn.h>
-
-static int (*sym_getsockopt)(int, int, int, void *, socklen_t *);
-
-static void __attribute__((constructor)) init(void)
-{
-    sym_getsockopt = dlsym(RTLD_NEXT, "getsockopt");
-    return;
-}
 
 int getsockopt(int sockfd,
                int level,
@@ -23,7 +15,7 @@ int getsockopt(int sockfd,
     socklen_t len = sizeof(sa);
 
     // Pass through the request.
-    int result = sym_getsockopt(sockfd, level, optname, optval, optlen);
+    int result = syscall(SYS_getsockopt, sockfd, level, optname, optval, optlen);
 
     // If it worked, we're good.
     if (result != -1 || errno != EINVAL)
