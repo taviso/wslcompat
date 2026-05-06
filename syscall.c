@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <linux/kcmp.h>
+#include <stdbool.h>
 
 static long (*sym_syscall)(long number, ...);
 

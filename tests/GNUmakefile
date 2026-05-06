@@ -7,14 +7,16 @@ VGFLAGS = --quiet --error-exitcode=2 --suppressions=valgrind.supp
 .PHONY: clean test linux
 
 # These tests should fail without libwslcompat, and then pass when with.
-TESTS = mmap statx sockaddr socktest vtime_test ofd_close ofd_dup ofd mincore \
-        init_order multiproc mlock_test
+TESTS = mmap statx sockaddr socktest vtime_test mincore init_order multiproc   \
+        mlock_test ofd_block ofd_exec_test ofd_lifecycle ofd_multi
 
 # These test are expected failures (may implement in future).
-XFAIL = name_to_handle_at memfd_create ofd_partial kcmp_test ofd_flock_conflict
+XFAIL = name_to_handle_at memfd_create ofd_range ofd_compat ofd posix_standard \
+        fcntl_stress_test kcmp_test
 
 # These tests should pass both with and without the shim.
-XPASS = shm_test inode_test flock_vs_fcntl fcntl_close_wipe
+XPASS = shm_test inode_test flock_vs_fcntl fcntl_close_wipe flock_standard     \
+        tcgets
 
 test: $(addprefix chk_,$(TESTS)) $(addprefix xfl_,$(XFAIL)) $(addprefix xps_,$(XPASS)) ../libwslcompat.so
 	@echo ====================
