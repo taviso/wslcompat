@@ -11,5 +11,5 @@
 int main(int argc, char **argv)
 {
     struct termios2 term;
-    return ioctl(0, TCGETS2, &term) == 0;
+    return ioctl(0, TCGETS2, &term) != 0;
 }
