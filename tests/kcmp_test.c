@@ -45,6 +45,20 @@ int main() {
         errx(EXIT_FAILURE, "Failure: kcmp said fd1 and fd2 are different OFDs (%d).", res);
     }
 
+    res = kcmp(getpid(), getpid(), KCMP_FILE, fd1, fd1);
+    if (res == -1) {
+        if (errno == ENOSYS) {
+            errx(EXIT_FAILURE, "kcmp() is not implemented on this kernel (ENOSYS).");
+        }
+        err(EXIT_FAILURE, "kcmp(fd1, fd1) failed");
+    }
+
+    if (res == 0) {
+        printf("Success: kcmp correctly identified fd1 and fd1 as same OFD.\n");
+    } else {
+        errx(EXIT_FAILURE, "Failure: kcmp said fd1 and fd1 are different OFDs (%d).", res);
+    }
+
     // fd1 and fd3 should be different (different OFD)
     res = kcmp(getpid(), getpid(), KCMP_FILE, fd1, fd3);
     if (res == -1) {
@@ -57,9 +71,23 @@ int main() {
         errx(EXIT_FAILURE, "Failure: kcmp said fd1 and fd3 are the same OFD.");
     }
 
+    // fd1 and fd4 should be different (different files)
+    int fd4 = open("/etc/passwd", O_RDONLY);
+    if (fd4 == -1) err(EXIT_FAILURE, "open /etc/passwd");
+
+    res = kcmp(getpid(), getpid(), KCMP_FILE, fd1, fd4);
+    if (res == -1) err(EXIT_FAILURE, "kcmp(fd1, fd4) failed");
+
+    if (res != 0) {
+        printf("Success: kcmp correctly identified fd1 and fd4 as different files.\n");
+    } else {
+        errx(EXIT_FAILURE, "Failure: kcmp said fd1 (/tmp) and fd4 (/etc/passwd) are the same OFD.");
+    }
+
     close(fd1);
     close(fd2);
     close(fd3);
+    close(fd4);
 
     return 0;
 }
