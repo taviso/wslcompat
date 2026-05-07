@@ -17,5 +17,5 @@ test: libwslcompat.so
 	$(MAKE) -C tests
 
 clean:
-	rm -f *.o *.so
+	rm -f a.out *.o *.so
 	$(MAKE) -C tests clean

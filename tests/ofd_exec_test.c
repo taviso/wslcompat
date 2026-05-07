@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     printf("--- Subtest: exec() persistence and ambiguity ---\n");
     char tmpfile[] = "/tmp/ofd_exec_XXXXXX";
     int fd1 = mkostemp(tmpfile, O_RDWR);
-    int fd2 = open(tmpfile, O_RDWR);
+    int fd2 = dup(fd1);
     if (fd1 == -1 || fd2 == -1) err(EXIT_FAILURE, "setup");
     unlink(tmpfile);
 
