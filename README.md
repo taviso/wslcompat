@@ -27,6 +27,38 @@ $ patchelf --add-needed /usr/local/lib/libwslcompat.so $(which program)
 
 If this doesn't fix your binary, or causes any problems, please open an issue.
 
+## Scripts
+
+If you're trying to fix a script, you need to `patchelf` the interpreter, such
+as `python` or `ruby`.
+
+For example, The `multiprocessing` python module does not work on WSL1:
+
+```
+$ python multiproc.py
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python3.12/multiprocessing/forkserver.py", line 207, in main
+    with socket.socket(socket.AF_UNIX, fileno=listener_fd) as listener, \
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/socket.py", line 233, in __init__
+    _socket.socket.__init__(self, family, type, proto, fileno)
+OSError: [Errno 22] Invalid argument
+```
+
+However, we correctly polyfill the necessary socket options.
+
+```
+$ LD_PRELOAD=libwslcompat.so python multiproc.py
+hello
+```
+
+If you want this to be permanent, simply try this:
+
+```
+$ sudo patchelf --add-needed libwslcompat.so /usr/bin/python
+```
+
 ## Testing
 
 There are a variety of tests in the tests directory that verify the polyfills
