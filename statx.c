@@ -19,7 +19,8 @@ static int (*sym_statx)(int dirfd, const char *pathname, int flags,
                         unsigned int mask, struct statx *statxbuf);
 
 static void __attribute__((destructor)) fini(void) {
-    close(mount_fd);
+    if (mount_fd != -1)
+        close(mount_fd);
 }
 
 static uint64_t lookup_mnt_id(uint32_t maj, uint32_t min) {
