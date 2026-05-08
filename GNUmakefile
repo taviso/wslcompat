@@ -7,7 +7,7 @@ all: libwslcompat.so
 
 .PHONY: clean test
 
-libwslcompat.so: getsockopt.o mmap.o fcntl.o ioctl.o statx.o mincore.o syscall.o
+libwslcompat.so: getsockopt.o mmap.o fcntl.o ioctl.o statx.o mincore.o syscall.o rename.o
 	gcc -shared $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 install: libwslcompat.so

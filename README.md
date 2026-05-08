@@ -80,10 +80,11 @@ Type `make test` to run them.
 - `STATX_ATTR_MOUNT_ROOT` is unimplemented.
 - `STATX_BTIME` is unimplemented.
 - `MAP_LOCKED` is unimplemented.
+- `RENAME_NOREPLACE` is unimplemented.
 
 ## File Locking
 
-The available reliable file locking primitives on WSL1 are extremely limited.
+The file locking primitives available on WSL1 is extremely limited.
 
 This library makes an attempt to improve the consistency of locking primitives.
 
@@ -93,8 +94,6 @@ For further discussion on the problem please see [LOCKS.md](LOCKS.md).
 
 We can polyfill these in future.
 
-- `renameat2`
-    - We can use use `link`/`unlink` for `RENAME_NOREPLACE`.
 - `kcmp`
     - For the `pid1`==`pid2` and `KCMP_FILE` case, we can use toggle flags with
       `F_GETFL`/`F_SETFL` to see if a file is the same.

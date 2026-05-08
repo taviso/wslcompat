@@ -10,7 +10,7 @@ VGFLAGS = --quiet --error-exitcode=2 --suppressions=valgrind.supp
 TESTS = mmap statx sockaddr socktest vtime_test mincore init_order multiproc   \
         mlock_test ofd_block ofd_exec_test ofd_lifecycle ofd_multi             \
         linux_lock_test ofd_hybrid_test ofd_interop_test ofd_range_hybrid      \
-        posix_vs_posix posix_vs_posix_local sqlite_lock
+        posix_vs_posix posix_vs_posix_local sqlite_lock renameat2
 
 # These test are expected failures (may implement in future).
 XFAIL = name_to_handle_at memfd_create ofd_range ofd_compat ofd posix_standard \
@@ -18,7 +18,7 @@ XFAIL = name_to_handle_at memfd_create ofd_range ofd_compat ofd posix_standard \
 
 # These tests should pass both with and without the shim.
 XPASS = shm_test inode_test flock_vs_fcntl flock_standard tcgets proc_test     \
-        unlinked_test
+        unlinked_test verify_xattr
 
 test: $(addprefix chk_,$(TESTS)) $(addprefix xfl_,$(XFAIL)) $(addprefix xps_,$(XPASS)) ../libwslcompat.so
 	@echo ====================
@@ -77,6 +77,9 @@ chk_%: %.sh ../libwslcompat.so
 
 lin_%: %.py
 	python3 $<
+
+lin_%: %.sh
+	bash $<
 
 # The ELF initialization order test.
 sys_init_order: init_lib.o init_order.o
