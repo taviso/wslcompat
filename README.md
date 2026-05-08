@@ -84,13 +84,16 @@ Type `make test` to run them.
 
 ## File Locking
 
-The file locking primitives available on WSL1 is extremely limited.
+The file locking primitives available on WSL1 are extremely limited.
 
-This library makes an attempt to improve the consistency of locking primitives.
+This library makes an attempt to improve the consistency of locking, but does
+so by mapping all lock types onto the one reliable locking mechanism.
 
 For further discussion on the problem please see [LOCKS.md](LOCKS.md).
 
 ## Future
+
+### Polyfills
 
 We can polyfill these in future.
 
@@ -98,3 +101,6 @@ We can polyfill these in future.
     - For the `pid1`==`pid2` and `KCMP_FILE` case, we can use toggle flags with
       `F_GETFL`/`F_SETFL` to see if a file is the same.
 
+### Features
+
+- Should be able to selectively adjust features and locking via glibc-like tunables?
