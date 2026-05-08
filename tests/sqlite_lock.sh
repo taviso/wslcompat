@@ -23,10 +23,10 @@ if ! type sqlite3; then
 fi
 
 # Begin an exclusive session.
-sqlite3 "${tmpfile}"                    \
-        "BEGIN EXCLUSIVE"               \
-        ".shell echo done >&${pipefd}"  \
-        ".shell read wait <&${pipefd}"  &
+sqlite3 "${tmpfile}"                                \
+        "BEGIN EXCLUSIVE"                           \
+        ".shell echo done"                          \
+        ".shell read wait" <&${pipefd} >&${pipefd} &
 
 # Wait for that to initialize.
 read -u ${pipefd}
