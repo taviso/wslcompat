@@ -10,7 +10,7 @@ VGFLAGS = --quiet --error-exitcode=2 --suppressions=valgrind.supp
 TESTS = mmap statx sockaddr socktest vtime_test mincore init_order multiproc   \
         mlock_test ofd_block ofd_exec_test ofd_lifecycle ofd_multi             \
         linux_lock_test ofd_hybrid_test ofd_interop_test ofd_range_hybrid      \
-        posix_vs_posix posix_vs_posix_local
+        posix_vs_posix posix_vs_posix_local sqlite_lock
 
 # These test are expected failures (may implement in future).
 XFAIL = name_to_handle_at memfd_create ofd_range ofd_compat ofd posix_standard \
@@ -71,6 +71,9 @@ val_%: fix_%
 
 chk_%: %.py ../libwslcompat.so
 	env LD_PRELOAD=../libwslcompat.so python3 $<
+
+chk_%: %.sh ../libwslcompat.so
+	env LD_PRELOAD=../libwslcompat.so bash $<
 
 lin_%: %.py
 	python3 $<
