@@ -29,6 +29,7 @@ static inline int fcntl_translate_type(int type)
 
 static int flock_status_query(int fd, struct flock *fl)
 {
+    int proposed = fl->l_type;
     int result = -1;
     int test_fd;
     char path[64];
@@ -53,6 +54,12 @@ static int flock_status_query(int fd, struct flock *fl)
 
     if (flock(test_fd, LOCK_SH | LOCK_NB) == 0) {
         fl->l_type = F_RDLCK;
+
+        // Shared lock(s) exist; only a proposed exclusive lock conflicts.
+        if (proposed != F_WRLCK) {
+            fl->l_type = F_UNLCK;
+        }
+
         fl->l_whence = SEEK_SET;
         fl->l_start = 0;
         fl->l_len = 0;
@@ -87,17 +94,9 @@ static int fcntl_lock_shim(int fd, int cmd, struct flock *fl)
     };
 
     if (cmd == F_GETLK || cmd == F_OFD_GETLK) {
-        // Try the native POSIX check first.
-        sym_fcntl(fd, F_GETLK, fl);
-
-        if (fl->l_type != F_UNLCK) {
-            if (cmd == F_OFD_GETLK) {
-                fl->l_pid = -1;
-            }
-            return 0;
-        }
-
-        // Fall back to the /proc trick for flock() visibility.
+        // WSL1's partial POSIX F_GETLK is unreliable: it misreports l_type
+        // (always F_WRLCK), doesn't populate l_pid, and ignores ranges.
+        // The flock-based probe is the source of truth.
         return flock_status_query(fd, fl);
     }
 
@@ -105,18 +104,23 @@ static int fcntl_lock_shim(int fd, int cmd, struct flock *fl)
     if ((operation = fcntl_translate_type(fl->l_type)) < 0)
         return -1;
 
-    // Mirror as POSIX for metadata and "close drops locks" behavior.
-    // We always use F_SETLK (non-blocking); the real block happens in flock().
-    sym_fcntl(fd, F_SETLK, &hybrid);
-
-    // Apply the real enforcement via flock().
     if (cmd == F_SETLK || cmd == F_OFD_SETLK) {
         if (fl->l_type != F_UNLCK) {
             operation |= LOCK_NB;
         }
     }
 
-    return flock(fd, operation);
+    // Enforce via flock() first; if that fails (contention with LOCK_NB,
+    // EINTR on the blocking variants), bail out before mutating the POSIX
+    // mirror so nothing partial is left behind.
+    if (flock(fd, operation) == -1) {
+        return -1;
+    }
+
+    // Mirror as POSIX so non-shimmed consumers calling raw fcntl(F_GETLK)
+    // can still see our locks. Best-effort: real enforcement is via flock().
+    sym_fcntl(fd, F_SETLK, &hybrid);
+    return 0;
 }
 
 static int fcntl_common(int fd, int cmd, void *arg)
