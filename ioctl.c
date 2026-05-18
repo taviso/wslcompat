@@ -35,11 +35,13 @@ static inline int isset_atomic(uint8_t *a, int i) {
     return (__sync_add_and_fetch(&a[i / NBBY], 0) & (1 << (i % NBBY)));
 }
 
-static void __attribute__((constructor)) init(void)
+static int __attribute__((constructor)) init(void)
 {
-    sym_ioctl = dlsym(RTLD_NEXT, "ioctl");
-    sym_read  = dlsym(RTLD_NEXT, "read");
-    return;
+    if ((sym_ioctl = dlsym(RTLD_NEXT, "ioctl")) == NULL)
+        return -1;
+    if ((sym_read = dlsym(RTLD_NEXT, "read")) == NULL)
+        return -1;
+    return 0;
 }
 
 static void handle_tcset(int fd, struct termios *tio)
@@ -77,6 +79,11 @@ int ioctl(int fd, unsigned long op, ...)
     arg = va_arg(ap, void *);
     va_end(ap);
 
+    if (__builtin_expect(sym_ioctl == NULL, false)) {
+        // Initialization order error, call constructor
+        if (init() != 0) return -1;
+    }
+
     result = sym_ioctl(fd, op, arg);
 
     if (result == 0) {
@@ -101,6 +108,11 @@ ssize_t read(int fd, void *buf, size_t count) {
     cc_t *vmin  = &t.c_cc[VMIN];
     cc_t *vtime = &t.c_cc[VTIME];
     char *ptr = buf;
+
+    if (__builtin_expect(sym_read == NULL, false)) {
+        // Initialization order error, call constructor
+        if (init() != 0) return -1;
+    }
 
     // Verify interception is globally enabled.
     if (__sync_add_and_fetch(&read_intercept, 0) == 0)
