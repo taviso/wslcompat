@@ -183,12 +183,9 @@ ssize_t read(int fd, void *buf, size_t count) {
     return sym_next(read, fd, buf, count);
 }
 
-int tcsetattr(int fd, int optional_actions, struct termios *termios_p)
+int tcsetattr(int fd, int optional_actions, const struct termios *termios_p)
 {
     unsigned long int cmd;
-
-    if (wslcompat_passthru("ioctl"))
-        return ioctl(fd, cmd, termios_p);
 
     switch (optional_actions) {
         case TCSANOW:

@@ -36,12 +36,14 @@ int getsockopt(int sockfd,
     if (optname == SO_DOMAIN && *optlen >= sizeof(sa.sa_family)) {
         memset(optval, 0, *optlen);
         memcpy(optval, &sa.sa_family, sizeof sa.sa_family);
+        *optlen = sizeof sa.sa_family;
         return 0;
     }
 
     // This one is always 0 for AF_UNIX
     if (optname == SO_PROTOCOL && *optlen >= sizeof(int)) {
         memset(optval, 0, sizeof(int));
+        *optlen = sizeof(int);
         return 0;
     }
 

@@ -125,7 +125,7 @@ int statx(int dirfd, const char *pathname, int flags,
                               statxbuf);
 
     // If it failed, no need to do anything.
-    if (ret != 0 || wslcompat_passthru("statx"))
+    if (ret != 0)
         return ret;
 
     // Check if caller wanted STATX_MNT_ID
