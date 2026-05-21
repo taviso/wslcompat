@@ -8,17 +8,19 @@
 #include <errno.h>
 #include <dlfcn.h>
 
-static int (*sym_renameat2)(int olddirfd, const char *oldpath,
-                            int newdirfd, const char *newpath, unsigned int flags);
+#include "shim.h"
+#include "logging.h"
+#include "tunables.h"
 
-static void __attribute__((constructor)) init(void)
-{
-    sym_renameat2 = dlsym(RTLD_NEXT, "renameat2");
-}
+SHIM_INIT(renameat2);
 
 int renameat2(int olddirfd, const char *oldpath,
               int newdirfd, const char *newpath, unsigned int flags)
 {
+
+    if (wslcompat_passthru("renameat2"))
+        return sym_next(renameat2, olddirfd, oldpath, newdirfd, newpath, flags);
+
     if (flags == RENAME_NOREPLACE) {
         if (linkat(olddirfd, oldpath, newdirfd, newpath, 0) != 0) {
             return -1;
@@ -30,5 +32,5 @@ int renameat2(int olddirfd, const char *oldpath,
         return renameat(olddirfd, oldpath, newdirfd, newpath);
     }
 
-    return sym_renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
+    return sym_next(renameat2, olddirfd, oldpath, newdirfd, newpath, flags);
 }

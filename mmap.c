@@ -8,6 +8,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "logging.h"
+#include "shim.h"
+#include "tunables.h"
+
 static void *mmap_common(void *addr,
                          size_t length,
                          int prot,
@@ -18,6 +22,9 @@ static void *mmap_common(void *addr,
     void *result;
     void *probe;
     int origflags = flags;
+
+    if (wslcompat_passthru("mmap"))
+        return (void *) syscall(SYS_mmap, addr, length, prot, flags, fd, offset);
 
     // Strip flags known to be unsupported by the WSL1 kernel.
     flags &= ~MAP_LOCKED;

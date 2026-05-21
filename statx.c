@@ -12,11 +12,14 @@
 #include <stdint.h>
 #include <limits.h>
 
+#include "shim.h"
+#include "logging.h"
+#include "tunables.h"
+
+SHIM_INIT(statx);
+
 // A cached file descriptor to /proc/self/mountinfo
 static int mount_fd = -1;
-
-static int (*sym_statx)(int dirfd, const char *pathname, int flags,
-                        unsigned int mask, struct statx *statxbuf);
 
 static void __attribute__((destructor)) fini(void) {
     if (mount_fd != -1)
@@ -109,19 +112,20 @@ static int is_mount_root(int dirfd, const char *pathname, int flags, struct stat
     return (dev != parent.st_dev) || (ino == parent.st_ino);
 }
 
-static void __attribute__((constructor)) init(void) {
-    sym_statx = dlsym(RTLD_NEXT, "statx");
-}
-
 int statx(int dirfd, const char *pathname, int flags,
           unsigned int mask, struct statx *statxbuf) {
+
     // Pass through the call to glibc.
     // We force STATX_INO and STATX_TYPE so is_mount_root can reuse them.
     // We also force STATX_MTIME and STATX_CTIME for BTIME polyfill.
-    int ret = sym_statx(dirfd, pathname, flags, mask | STATX_INO | STATX_TYPE | STATX_MTIME | STATX_CTIME, statxbuf);
+    int ret = sym_next(statx, dirfd,
+                              pathname,
+                              flags,
+                              mask | STATX_INO | STATX_TYPE | STATX_MTIME | STATX_CTIME,
+                              statxbuf);
 
     // If it failed, no need to do anything.
-    if (ret != 0)
+    if (ret != 0 || wslcompat_passthru("statx"))
         return ret;
 
     // Check if caller wanted STATX_MNT_ID

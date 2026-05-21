@@ -14,10 +14,13 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 
+#include "tunables.h"
+#include "logging.h"
+#include "shim.h"
+
 #define MAX_FDS 8192
 
-static int (*sym_ioctl)(int fd, unsigned long op, ...);
-static ssize_t (*sym_read)(int fd, void *buf, size_t count);
+SHIM_INIT(ioctl, read);
 
 static uint8_t fd_seen[howmany(MAX_FDS, NBBY)];
 static uint8_t fd_intercept[howmany(MAX_FDS, NBBY)];
@@ -33,15 +36,6 @@ static inline void clrbit_atomic(uint8_t *a, int i) {
 
 static inline int isset_atomic(uint8_t *a, int i) {
     return (__sync_add_and_fetch(&a[i / NBBY], 0) & (1 << (i % NBBY)));
-}
-
-static int __attribute__((constructor)) init(void)
-{
-    if ((sym_ioctl = dlsym(RTLD_NEXT, "ioctl")) == NULL)
-        return -1;
-    if ((sym_read = dlsym(RTLD_NEXT, "read")) == NULL)
-        return -1;
-    return 0;
 }
 
 static void handle_tcset(int fd, struct termios *tio)
@@ -79,12 +73,10 @@ int ioctl(int fd, unsigned long op, ...)
     arg = va_arg(ap, void *);
     va_end(ap);
 
-    if (__builtin_expect(sym_ioctl == NULL, false)) {
-        // Initialization order error, call constructor
-        if (init() != 0) return -1;
-    }
+    result = sym_next(ioctl, fd, op, arg);
 
-    result = sym_ioctl(fd, op, arg);
+    if (wslcompat_passthru("ioctl"))
+        return result;
 
     if (result == 0) {
         switch (op) {
@@ -109,11 +101,6 @@ ssize_t read(int fd, void *buf, size_t count) {
     cc_t *vtime = &t.c_cc[VTIME];
     char *ptr = buf;
 
-    if (__builtin_expect(sym_read == NULL, false)) {
-        // Initialization order error, call constructor
-        if (init() != 0) return -1;
-    }
-
     // Verify interception is globally enabled.
     if (__sync_add_and_fetch(&read_intercept, 0) == 0)
         goto passthru;
@@ -126,13 +113,17 @@ ssize_t read(int fd, void *buf, size_t count) {
     if (isset_atomic(fd_seen, fd) && !isset_atomic(fd_intercept, fd))
         goto passthru;
 
+    // Make sure this feature us enabled.
+    if (wslcompat_passthru("ioctl"))
+        goto passthru;
+
     // It either isn't seen, or is being monitored.
     if (!isset_atomic(fd_seen, fd) || isset_atomic(fd_intercept, fd)) {
         // We now know this fd exists.
         setbit_atomic(fd_seen, fd);
 
         // Check if this is a tty
-        if (sym_ioctl(fd, TCGETS, &t) != 0) {
+        if (sym_next(ioctl, fd, TCGETS, &t) != 0) {
             // Not a tty, or not anymore, so we can clear it.
             clrbit_atomic(fd_intercept, fd);
             goto passthru;
@@ -162,7 +153,7 @@ ssize_t read(int fd, void *buf, size_t count) {
         if (result <= 0)
             return result;
 
-        if ((n = sym_read(fd, ptr, count)) <= 0)
+        if ((n = sym_next(read, fd, ptr, count)) <= 0)
             return n;
 
         total += n;
@@ -171,7 +162,7 @@ ssize_t read(int fd, void *buf, size_t count) {
         while (total < *vmin && total < count) {
             if (poll(&pfd, 1, timeout) <= 0)
                 break;
-            if ((n = sym_read(fd, ptr, count - total)) <= 0)
+            if ((n = sym_next(read, fd, ptr, count - total)) <= 0)
                 break;
             total += n;
             ptr   += n;
@@ -189,12 +180,15 @@ ssize_t read(int fd, void *buf, size_t count) {
     }
 
   passthru:
-    return sym_read(fd, buf, count);
+    return sym_next(read, fd, buf, count);
 }
 
 int tcsetattr(int fd, int optional_actions, struct termios *termios_p)
 {
     unsigned long int cmd;
+
+    if (wslcompat_passthru("ioctl"))
+        return ioctl(fd, cmd, termios_p);
 
     switch (optional_actions) {
         case TCSANOW:
@@ -207,6 +201,7 @@ int tcsetattr(int fd, int optional_actions, struct termios *termios_p)
             cmd = TCSETSF;
             break;
         default:
+            wsldbg("unrecognized optional_actions %d", optional_actions);
             errno = EINVAL;
             return -1;
     }

@@ -7,25 +7,14 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include "shim.h"
 
-static long (*sym_syscall)(long number, ...);
-
-static int __attribute__((constructor)) init(void)
-{
-    if ((sym_syscall = dlsym(RTLD_NEXT, "syscall")) == NULL)
-        return -1;
-    return 0;
-}
+SHIM_INIT(syscall);
 
 long syscall(long number, ...)
 {
     va_list ap;
     va_start(ap, number);
-
-    if (__builtin_expect(sym_syscall == NULL, false)) {
-        // Initialization order error, call constructor
-        if (init() != 0) return -1;
-    }
 
     // We can intercept syscall numbers we want to polyfill here.
     // switch (number) { ... }
@@ -39,5 +28,5 @@ long syscall(long number, ...)
 
     va_end(ap);
 
-    return sym_syscall(number, a0, a1, a2, a3, a4, a5);
+    return sym_next(syscall, number, a0, a1, a2, a3, a4, a5);
 }
