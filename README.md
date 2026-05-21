@@ -7,7 +7,7 @@ The idea is to patch binaries that use unimplemented functionality with
 
 ## Building
 
-Just type `make`, then copy `libwslcompat.so` to `/usr/local/lib/`.
+Just type `make`, then `make install`.
 
 ## Usage
 
@@ -91,32 +91,24 @@ Type `make test` to run them.
 - `STATX_BTIME` is unimplemented.
 - `MAP_LOCKED` is unimplemented.
 - `RENAME_NOREPLACE` is unimplemented.
+- `execve()` rejects ELF64 binaries with mixed `PT_LOAD` `p_align`.
+- `execveat()` is unimplemented.
 
 ## Tunables
 
 You can configure wslcompat using extended attributes, called tunables.
 
 Tunables let you change the behavior of each binary by enabling or disabling
-polyfills and features. This is particularly useful if you're using wslcompat
-via `/etc/ld.so.preload`.
+polyfills and features, which is particularly useful when wslcompat is
+loaded via `/etc/ld.so.preload`.
 
-### Selecting Polyfills
+For the full reference of every tunable and how to set them, see
+[TUNABLES.md](TUNABLES.md).
 
-By default every polyfill is active. You can opt out of a polyfill by adding
-its name to the comma-separated list in `user.wslcompat.disabled`.
-
-```
-$ setfattr -n user.wslcompat.disabled -v "fcntl,statx" $(which program)
-```
-
-### Debug Logging
-
-Set `user.wslcompat.debug` to enable runtime logging to `/dev/tty`.
-
-The value is the maximum log level to print; the higher the number, the more
-verbose the logging will be.
+A few common ones:
 
 ```
+$ setfattr -n user.wslcompat.disabled -v "fcntl,mmap" $(which program)
 $ setfattr -n user.wslcompat.debug -v 2 $(which program)
 ```
 
@@ -128,6 +120,24 @@ This library makes an attempt to improve the consistency of locking, but does
 so by mapping all lock types onto the one reliable locking mechanism.
 
 For further discussion on the problem please see [LOCKS.md](LOCKS.md).
+
+## Elf64 Loading
+
+The Elf64 loader in WSL1 will reject any binary that has `PT_LOAD` program
+headers with non-uniform alignment. These are perfectly valid and common
+programs, so an `execve` polyfill attempts to detect this case.
+
+The polyfill can re-exec binaries via their interpreter, but this only works
+for dynamically linked binaries.
+
+For static binaries, you can use `elfclamp` to patch the binary in place.
+
+```
+$ elfclamp /path/to/program
+```
+
+This unifies every `PT_LOAD` `p_align` to the smallest value observed, which
+preserves the ELF congruence rule. Already-uniform binaries are left alone.
 
 ## Future
 
