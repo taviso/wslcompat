@@ -105,13 +105,6 @@ Set `user.wslcompat.debug` to enable runtime logging to `/dev/tty`.
 The value is the maximum log level to print; the higher the number, the more
 verbose the logging will be.
 
-| Level     | Value |
-|-----------|-------|
-| `ERROR`   |     0 |
-| `WARNING` |     1 |
-| `INFO`    |     2 |
-| `DEBUG`   |     3 |
-
 ```
 $ setfattr -n user.wslcompat.debug -v 2 $(which program)
 ```
@@ -140,4 +133,4 @@ We can polyfill these in future.
 
 ### Features
 
-- Path redirection via a `user.wslcompat.redir` tunable
+- Path redirection via a `user.wslcompat.redir` tunable?
