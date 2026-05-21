@@ -10,14 +10,20 @@
 #include <string.h>
 #include <libgen.h>
 
+static char oldname[64] = "/tmp/wslcompat_rename_old_XXXXXX";
+static char newname[64] = "/tmp/wslcompat_rename_new_XXXXXX";
+
+static void cleanup(void)
+{
+    unlink(oldname);
+    unlink(newname);
+}
+
 int main(int argc, char **argv)
 {
-    char oldname[64];
-    char newname[64];
     int oldfd, newfd;
 
-    strcpy(oldname, "/tmp/wslcompat_rename_old_XXXXXX");
-    strcpy(newname, "/tmp/wslcompat_rename_new_XXXXXX");
+    atexit(cleanup);
 
     if ((oldfd = mkstemp(oldname)) == -1)
         err(EXIT_FAILURE, "mkstemp old");
