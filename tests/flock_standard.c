@@ -11,8 +11,16 @@
 
 static const char *tmp_path = "/tmp/flock_standard_test";
 
-#define TEST_PASS(msg) printf("  [PASS] %s\n", msg)
-#define TEST_FAIL(msg, reason) printf("  [FAIL] %s: %s\n", msg, reason)
+#define TEST_PASS(msg) do { printf("  [PASS] %s\n", msg); _exit(0); } while (0)
+#define TEST_FAIL(msg, reason) do { printf("  [FAIL] %s: %s\n", msg, reason); _exit(1); } while (0)
+
+static int failures;
+
+static void reap_child(void) {
+    int status;
+    wait(&status);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) failures++;
+}
 
 void test_exclusivity() {
     printf("--- Subtest: Exclusivity ---\n");
@@ -26,9 +34,8 @@ void test_exclusivity() {
         } else {
             TEST_FAIL("Process B blocked by Process A", "Conflict not detected!");
         }
-        _exit(0);
     }
-    wait(NULL);
+    reap_child();
     close(fd);
 }
 
@@ -44,9 +51,8 @@ void test_shared() {
         } else {
             TEST_FAIL("Process B allowed shared lock", "Incorrectly blocked!");
         }
-        _exit(0);
     }
-    wait(NULL);
+    reap_child();
     close(fd);
 }
 
@@ -63,9 +69,8 @@ void test_inheritance() {
         } else {
             TEST_FAIL("Child inherited lock ownership", "Blocked from its own inherited lock!");
         }
-        _exit(0);
     }
-    wait(NULL);
+    reap_child();
     close(fd);
 }
 
@@ -73,10 +78,10 @@ void test_close_persistence() {
     printf("\n--- Subtest: close() of dup doesn't release ---\n");
     int fd1 = open(tmp_path, O_RDWR);
     int fd2 = dup(fd1);
-    
+
     flock(fd1, LOCK_EX);
     printf("  Acquired lock on fd1. Closing fd2 (dup)...\n");
-    close(fd2); 
+    close(fd2);
 
     if (fork() == 0) {
         int fd3 = open(tmp_path, O_RDWR);
@@ -85,9 +90,8 @@ void test_close_persistence() {
         } else {
             TEST_FAIL("Lock persisted after close of dup", "Lock was lost!");
         }
-        _exit(0);
     }
-    wait(NULL);
+    reap_child();
     close(fd1);
 }
 
@@ -98,5 +102,5 @@ int main() {
     test_inheritance();
     test_close_persistence();
     unlink(tmp_path);
-    return 0;
+    return failures > 0 ? 1 : 0;
 }

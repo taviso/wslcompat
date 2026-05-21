@@ -8,6 +8,7 @@
 #include <string.h>
 
 int main() {
+    int failures = 0;
     char tmpfile[] = "/tmp/proc_test_XXXXXX";
     int fd1 = mkstemp(tmpfile);
     if (fd1 == -1) { perror("mkstemp"); return 1; }
@@ -27,6 +28,7 @@ int main() {
         printf("  [PASS] fd2 correctly blocked by fd1.\n");
     } else {
         printf("  [FAIL] fd2 was NOT blocked by fd1!\n");
+        failures++;
     }
 
     printf("4. Verifying fd1 still holds its lock...\n");
@@ -35,6 +37,7 @@ int main() {
         printf("  [PASS] fd1 still blocks fd3.\n");
     } else {
         printf("  [FAIL] fd1 no longer blocks fd3!\n");
+        failures++;
     }
     close(fd3);
 
@@ -44,6 +47,9 @@ int main() {
     printf("6. Testing LOCK_EX on fd2 (should fail)...\n");
     if (flock(fd2, LOCK_EX | LOCK_NB) == -1 && errno == EWOULDBLOCK) {
         printf("  [PASS] fd2 (EX) blocked by fd1 (SH).\n");
+    } else {
+        printf("  [FAIL] fd2 (EX) NOT blocked by fd1 (SH)!\n");
+        failures++;
     }
 
     printf("7. Testing LOCK_SH on fd2 (should succeed)...\n");
@@ -52,6 +58,7 @@ int main() {
         flock(fd2, LOCK_UN);
     } else {
         printf("  [FAIL] fd2 (SH) blocked by fd1 (SH)!\n");
+        failures++;
     }
 
     printf("8. Closing fd2 and checking fd1...\n");
@@ -61,10 +68,11 @@ int main() {
         printf("  [PASS] fd1 still blocks fd3 after fd2 was closed.\n");
     } else {
         printf("  [FAIL] fd1 lost its lock!\n");
+        failures++;
     }
 
     close(fd1);
     close(fd3);
     unlink(tmpfile);
-    return 0;
+    return failures > 0 ? 1 : 0;
 }

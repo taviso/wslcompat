@@ -43,7 +43,8 @@ int main() {
         }
     }
 
-    wait(NULL);
+    int status;
+    wait(&status);
     unlink(tmpfile);
-    return 0;
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0) ? 0 : 1;
 }

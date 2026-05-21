@@ -28,13 +28,15 @@ int main() {
     }
 
     printf("4. Testing LOCK_EX on fd2 (should fail if it's a new OFD for the same inode)...\n");
+    int failed = 0;
     if (flock(fd2, LOCK_EX | LOCK_NB) == -1 && errno == EWOULDBLOCK) {
         printf("  [PASS] Conflict detected on unlinked file via /proc.\n");
     } else {
         printf("  [FAIL] No conflict! Either same OFD (wrong) or different inode (wrong).\n");
+        failed = 1;
     }
 
     close(fd1);
     close(fd2);
-    return 0;
+    return failed;
 }
