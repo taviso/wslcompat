@@ -11,7 +11,8 @@ TESTS = mmap statx sockaddr socktest vtime_test mincore init_order multiproc   \
         mlock_test ofd_block ofd_exec_test ofd_lifecycle ofd_multi             \
         linux_lock_test ofd_hybrid_test ofd_interop_test                       \
         posix_vs_posix posix_vs_posix_local sqlite_lock renameat2              \
-        fcntl_getlk_proposed fcntl_upgrade fcntl_eintr vmin_test
+        fcntl_getlk_proposed fcntl_upgrade fcntl_eintr vmin_test elf_test      \
+        execveat
 
 # These test are expected failures (may implement in future).
 XFAIL = name_to_handle_at memfd_create ofd_range ofd_range_hybrid ofd_compat   \
@@ -87,6 +88,9 @@ lin_%: %.sh
 sys_init_order: init_lib.o init_order.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -shared -o $@.so $(word 1, $^) $(LDLIBS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(word 2, $^) $@.so -Wl,-rpath,'$$ORIGIN' $(LDLIBS)
+
+# The mixed-alignment ELF used by elf_test.sh.
+chk_elf_test lin_elf_test: sys_badalign
 
 clean:
 	rm -f a.out *.o *.log fix_* sys_*
