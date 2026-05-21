@@ -109,7 +109,11 @@ bool wslcompat_tunable_list(const char *key, const char *contains)
         // Point at next entry.
         p = strchrnul(s, ',');
 
-        // Check if match
+        // Check if this could match.
+        if (strlen(contains) != p - s)
+            continue;
+
+        // Check if it does match.
         if (strncmp(s, contains, p - s) == 0)
             return true;
     };
@@ -120,7 +124,7 @@ bool wslcompat_tunable_list(const char *key, const char *contains)
 // Test if a feature is enabled/disabled
 bool wslcompat_enabled(const char *name)
 {
-    // Is this feature is listed in disabled?
+    // Is this feature listed in disabled?
     if (wslcompat_tunable_list("disabled", name))
         return false;
     // Does enabled exist?

@@ -41,27 +41,22 @@ int wslcompat_debug_log(int level, const char *tag, const char *fmt, ...)
     if (debugfd < -1)
         debugfd = open("/dev/tty", O_WRONLY | O_CLOEXEC);
 
-    // If that files, nothing we can do.
+    // If that fails, nothing we can do.
     if (debugfd < 0)
         return -1;
 
-    // Optionall prepend a prefix string.
-    if (tag) {
-        logbuf[0].iov_len = snprintf(prefix, sizeof(prefix), "[wsl] %s: ", tag);
-    } else {
-        logbuf[0].iov_len = snprintf(prefix, sizeof(prefix), "[wsl] ");
-    }
-
     // Prepare log message.
     va_start(ap, fmt);
+    logbuf[0].iov_len = snprintf(prefix, sizeof(prefix), "[wsl] %s: ", tag);
     logbuf[1].iov_len = vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
 
-    // Verify that message printed.
-    if (logbuf[0].iov_len < 0 || logbuf[1].iov_len <= 0) {
+    // Check that didn't truncate.
+    if (logbuf[0].iov_len >= sizeof(prefix))
         return -1;
-    }
+    if (logbuf[1].iov_len >= sizeof(buf))
+        return -1;
 
-    // Pass to writev() to assumeble.
+    // Pass to writev() to assemble.
     return writev(debugfd, logbuf, 3);
 }
