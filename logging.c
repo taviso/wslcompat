@@ -34,7 +34,7 @@ int wslcompat_debug_log(int level, const char *tag, const char *fmt, ...)
         loglevel = wslcompat_tunable_int("debug", 0);
 
     // Check if this log message is wanted.
-    if (level < loglevel)
+    if (level > loglevel)
         return 0;
 
     // Check if we have an output descriptor.
