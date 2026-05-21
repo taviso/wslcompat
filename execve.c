@@ -67,6 +67,7 @@ static bool elf_needs_fixup(int fd, const char *pathname)
 int execve(const char *pathname, char *const argv[], char *const envp[])
 {
     char       *new_argv[MAX_NEW_ARGV] = {0};
+    char *const empty[] = { NULL };
     const char *interp;
     int         saved_errno;
     int         fd = -1;
@@ -100,12 +101,17 @@ int execve(const char *pathname, char *const argv[], char *const envp[])
         goto fail;
     }
 
+    // Handle empty argv, which linux accepts.
+    if (argv == NULL) {
+        argv = empty;
+    }
+
     interp = wslcompat_tunable_str("ptinterp", PTINTERP_DEFAULT);
 
     // Execute via the interpreter, bypassing the kernel's requirements.
     new_argv[pos++] = (char *) interp;
 
-    // Optionally use the new --argv0 feature since glibc 2.34.
+    // Optionally use the new --argv0 feature since glibc 2.33.
     if (wslcompat_tunable_bool("argv0", true)) {
         new_argv[pos++] = "--argv0";
         new_argv[pos++] = (char *)(argv[0] ? argv[0] : pathname);
@@ -118,7 +124,7 @@ int execve(const char *pathname, char *const argv[], char *const envp[])
         new_argv[pos++] = argv[++i];
 
         // Verify we can fit these parameters
-        if (pos > MAX_NEW_ARGV) {
+        if (pos >= MAX_NEW_ARGV) {
             saved_errno = E2BIG;
             goto fail;
         }
