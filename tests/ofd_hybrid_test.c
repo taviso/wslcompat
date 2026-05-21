@@ -7,13 +7,22 @@
 #include <errno.h>
 #include <err.h>
 
+static char _tmpfile[] = "/tmp/ofd_hybrid_XXXXXX";
+
+static void cleanup(void)
+{
+    unlink(_tmpfile);
+}
+
 int main() {
-    char tmpfile[] = "/tmp/ofd_hybrid_XXXXXX";
+    char *tmpfile = _tmpfile;
     struct flock fl = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 0 };
 
     printf("--- Test: Hybrid Emulation Reliability ---\n");
     int fd1 = mkostemp(tmpfile, O_RDWR);
     if (fd1 == -1) err(EXIT_FAILURE, "mkostemp");
+
+    atexit(cleanup);
 
     printf("1. Acquiring OFD lock on fd1 (PID %d)...\n", getpid());
     if (fcntl(fd1, F_OFD_SETLK, &fl) == -1) err(EXIT_FAILURE, "fcntl SETLK");
@@ -38,10 +47,8 @@ int main() {
         struct flock q3 = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 0 };
         if (fcntl(fd4, F_OFD_GETLK, &q3) == -1) err(EXIT_FAILURE, "GETLK q3");
         printf("   Child Result: %s\n", q3.l_type == F_UNLCK ? "UNLOCKED" : "LOCKED");
-        exit(q3.l_type == F_WRLCK ? 0 : 1);
+        _exit(q3.l_type == F_WRLCK ? 0 : 1);
     }
     int status; wait(&status);
-    
-    unlink(tmpfile);
     return WEXITSTATUS(status);
 }
