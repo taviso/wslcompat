@@ -59,6 +59,17 @@ If you want this to be permanent, simply try this:
 $ sudo patchelf --add-needed libwslcompat.so /usr/bin/python
 ```
 
+## Systemwide Preloading
+
+This library supports preloading via `/etc/ld.so.preload`, making it apply
+systemwide.
+
+```
+$ echo /usr/local/lib/libwslcompat.so | sudo tee -a /etc/ld.so.preload
+```
+
+If necessary, you can use [tunables](#tunables) to configure individual programs.
+
 ## Testing
 
 There are a variety of tests in the tests directory that verify the polyfills
