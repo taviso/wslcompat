@@ -18,12 +18,15 @@ int main() {
     if (fd == -1) err(EXIT_FAILURE, "mkostemp");
 
     printf("1. Acquiring OFD lock via shim...\n");
-    if (fcntl(fd, F_OFD_SETLK, &fl) == -1) err(EXIT_FAILURE, "fcntl SETLK");
+    if (fcntl(fd, F_OFD_SETLK, &fl) == -1) {
+        unlink(tmpfile);
+        err(EXIT_FAILURE, "fcntl SETLK");
+    }
 
     if (fork() == 0) {
         int fd2 = open(tmpfile, O_RDWR);
         struct flock query = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 0 };
-        
+
         printf("2. Child (NOT using shim) querying via standard POSIX F_GETLK...\n");
         // Use the raw syscall to bypass our library wrapper.
         if (syscall(SYS_fcntl, fd2, F_GETLK, &query) == -1) err(EXIT_FAILURE, "direct fcntl");

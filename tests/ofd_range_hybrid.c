@@ -16,12 +16,15 @@ int main() {
     if (fd == -1) err(EXIT_FAILURE, "mkostemp");
 
     printf("1. Acquiring OFD lock on range [1234, 1234+5678]...\n");
-    if (fcntl(fd, F_OFD_SETLK, &fl) == -1) err(EXIT_FAILURE, "fcntl SETLK");
+    if (fcntl(fd, F_OFD_SETLK, &fl) == -1) {
+        unlink(tmpfile);
+        err(EXIT_FAILURE, "fcntl SETLK");
+    }
 
     if (fork() == 0) {
         int fd2 = open(tmpfile, O_RDWR);
         struct flock query = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 0 };
-        
+
         printf("2. Child querying lock range via F_OFD_GETLK...\n");
         if (fcntl(fd2, F_OFD_GETLK, &query) == -1) err(EXIT_FAILURE, "child GETLK");
 

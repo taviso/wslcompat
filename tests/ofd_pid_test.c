@@ -17,7 +17,10 @@ int main() {
 
     pid_t parent_pid = getpid();
     printf("Parent (PID %d) acquiring OFD lock...\n", parent_pid);
-    if (fcntl(fd, F_OFD_SETLK, &fl) == -1) err(EXIT_FAILURE, "fcntl SETLK");
+    if (fcntl(fd, F_OFD_SETLK, &fl) == -1) {
+        unlink(tmpfile);
+        err(EXIT_FAILURE, "fcntl SETLK");
+    }
 
     pid_t child_pid = fork();
     if (child_pid == 0) {
@@ -26,7 +29,7 @@ int main() {
 
         struct flock query = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 0 };
         printf("Child (PID %d) querying lock state...\n", getpid());
-        
+
         if (fcntl(fd2, F_OFD_GETLK, &query) == -1) err(EXIT_FAILURE, "child GETLK");
 
         if (query.l_type == F_UNLCK) {

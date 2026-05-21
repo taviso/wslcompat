@@ -18,7 +18,10 @@ static void test_multiproc()
     fd = mkostemp(tmpfile, O_RDWR);
     if (fd == -1) err(EXIT_FAILURE, "mkostemp");
 
-    if (fcntl(fd, F_OFD_SETLK, &fl) == -1) err(EXIT_FAILURE, "parent fcntl");
+    if (fcntl(fd, F_OFD_SETLK, &fl) == -1) {
+        unlink(tmpfile);
+        err(EXIT_FAILURE, "parent fcntl");
+    }
 
     if (fork() == 0) {
         int fd2 = open(tmpfile, O_RDWR);
