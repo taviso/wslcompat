@@ -20,7 +20,7 @@
 
 #define MAX_FDS 8192
 
-SHIM_INIT(ioctl, read);
+SHIM_INIT(ioctl, read, fcntl);
 
 static uint8_t fd_seen[howmany(MAX_FDS, NBBY)];
 static uint8_t fd_intercept[howmany(MAX_FDS, NBBY)];
@@ -94,6 +94,15 @@ int ioctl(int fd, unsigned long op, ...)
     return result;
 }
 
+static bool fd_is_nonblocking(int fd)
+{
+    int flags = sym_next(fcntl, fd, F_GETFL);
+
+    if (flags == -1)
+        return false;
+    return flags & O_NONBLOCK;
+}
+
 ssize_t read(int fd, void *buf, size_t count) {
     struct termios t = {0};
     struct pollfd pfd = { .fd = fd, .events = POLLIN };
@@ -138,6 +147,10 @@ ssize_t read(int fd, void *buf, size_t count) {
         clrbit_atomic(fd_intercept, fd);
         goto passthru;
     }
+
+    // O_NONBLOCK takes precedence over MIN/TIME on Linux.
+    if (fd_is_nonblocking(fd))
+        goto passthru;
 
     // Handle VMIN/VTIME modifications. WSL maintains these, but ignores them.
     if (*vmin == 0 && *vtime > 0) {

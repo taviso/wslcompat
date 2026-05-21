@@ -156,6 +156,45 @@ static int test_interbyte_timeout(void)
     return 0;
 }
 
+static int test_nonblock_precedence(void)
+{
+    printf("--- O_NONBLOCK takes precedence over VMIN ---\n");
+    int m, s;
+    open_pty(&m, &s);
+    set_raw(s, 5, 0);
+
+    int flags = fcntl(s, F_GETFL);
+    if (flags == -1) err(EXIT_FAILURE, "F_GETFL");
+    if (fcntl(s, F_SETFL, flags | O_NONBLOCK) == -1)
+        err(EXIT_FAILURE, "F_SETFL");
+
+    char buf[16];
+    struct timeval t0, t1;
+    errno = 0;
+    gettimeofday(&t0, NULL);
+    ssize_t n = read(s, buf, sizeof(buf));
+    gettimeofday(&t1, NULL);
+    long ms = elapsed_ms(&t0, &t1);
+    int saved_errno = errno;
+
+    close(m);
+    close(s);
+
+    printf("  empty nonblocking read -> %zd errno=%d in %ld ms\n",
+           n, saved_errno, ms);
+
+    if (n != -1 || (saved_errno != EAGAIN && saved_errno != EWOULDBLOCK)) {
+        printf("  FAIL: expected EAGAIN/EWOULDBLOCK\n");
+        return 1;
+    }
+    if (ms > 200) {
+        printf("  FAIL: nonblocking read waited too long\n");
+        return 1;
+    }
+    printf("  PASS\n");
+    return 0;
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -170,6 +209,7 @@ int main(void)
     failures += test_polled();
     failures += test_vmin_only();
     failures += test_interbyte_timeout();
+    failures += test_nonblock_precedence();
 
     if (failures > 0) {
         printf("FAIL: %d subtest(s)\n", failures);
