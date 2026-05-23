@@ -124,6 +124,9 @@ bool wslcompat_tunable_list(const char *key, const char *contains)
 // Test if a feature is enabled/disabled
 bool wslcompat_enabled(const char *name)
 {
+    // Set to disable polyfills without editing /etc/ld.so.preload.
+    if (getenv("__WSLCOMPAT_DISABLE"))
+        return false;
     // Is this feature listed in disabled?
     if (wslcompat_tunable_list("disabled", name))
         return false;
