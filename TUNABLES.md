@@ -41,8 +41,8 @@ $ setfattr -n user.wslcompat.disabled -v "fcntl,mmap" $(which program)
 ```
 
 Valid names: `clock_getres`, `clock_gettime`, `clock_nanosleep`, `execve`,
-`execveat`, `fcntl`, `getsockopt`, `ioctl`, `mincore`, `mmap`, `renameat2`,
-`setsockopt`.
+`execveat`, `fcntl`, `getsockopt`, `ioctl`, `mincore`, `mmap`, `open`,
+`openat`, `renameat2`, `setsockopt`.
 
 ### `enabled`
 
@@ -100,3 +100,15 @@ The TAI–UTC offset in seconds used by the `CLOCK_TAI` polyfills.
 ```
 $ setfattr -n user.wslcompat.taioffset -v 38 $(which program)
 ```
+
+### `btime`
+
+The creation time of a file as reported by `statx()`, usually set automatically.
+
+You can set it manually on files, if you like:
+
+```
+$ setfattr -n user.wslcompat.btime -v "1700000000.000000000" /tmp/myfile
+```
+
+Files without this xattr fall back to a heuristic polyfill.

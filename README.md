@@ -1,9 +1,11 @@
 # wslcompat
 
-This is an experimental library to workaround incompatibilities in WSL1.
+wslcompat is a compatibility layer that makes more software work on WSL1.
 
-The idea is to patch binaries that use unimplemented functionality with
-"polyfills", user-space implementations of the missing functionality.
+The idea is to add "polyfills" - userspace implementations of the missing
+functionality - that fill in the gaps preventing your software from running.
+
+This doesn't require any changes to the binaries or the underlying kernel.
 
 ## Building
 
@@ -98,6 +100,7 @@ Type `make test` to run them.
 - `clock_getres()` and `clock_gettime()` reject `CLOCK_TAI`.
 - `clock_gettime()` rejects the encoded clockids from `clock_getcpuclockid()`.
 - `SO_REUSEPORT` is accepted but is unimplemented.
+- `O_TMPFILE` is unimplemented.
 
 ## Tunables
 
@@ -158,6 +161,7 @@ We can polyfill these in future.
       splice an `SCM_TIMESTAMP` cmsg captured around the underlying recv.
 - `setitimer(ITIMER_PROF)` and `setitimer(ITIMER_VIRTUAL)`
     - WSL1 rejects both with `EINVAL`, may require a helper thread.
+- `linkat` on an `O_TMPFILE` fd
 
 ### Features
 
