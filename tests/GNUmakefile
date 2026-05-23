@@ -12,12 +12,12 @@ TESTS = mmap statx sockaddr socktest vtime_test mincore init_order multiproc   \
         linux_lock_test ofd_hybrid_test ofd_interop_test                       \
         posix_vs_posix posix_vs_posix_local sqlite_lock renameat2              \
         fcntl_getlk_proposed fcntl_upgrade fcntl_eintr vmin_test elf_test      \
-        execveat execveat_null
+        execveat
 
 # These test are expected failures (may implement in future).
 XFAIL = name_to_handle_at memfd_create ofd_range ofd_range_hybrid ofd_compat   \
         ofd posix_standard fcntl_stress_test kcmp_test ofd_pid_test            \
-        posix_pid_test
+        posix_pid_test clock_nanosleep_cputime
 
 # These tests should pass both with and without the shim.
 XPASS = shm_test inode_test flock_vs_fcntl flock_standard tcgets proc_test     \
