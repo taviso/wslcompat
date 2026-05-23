@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include "tunables.h"
+
 int getsockopt(int sockfd,
                int level,
                int optname,
@@ -13,6 +15,14 @@ int getsockopt(int sockfd,
 {
     struct sockaddr sa = {0};
     socklen_t len = sizeof(sa);
+
+    if (wslcompat_passthru("getsockopt"))
+        return syscall(SYS_getsockopt, sockfd, level, optname, optval, optlen);
+
+    // Translate SO_REUSEPORT to SO_REUSEADDR (Windows semantics allow port
+    // sharing via SO_REUSEADDR).
+    if (level == SOL_SOCKET && optname == SO_REUSEPORT)
+        optname = SO_REUSEADDR;
 
     // Pass through the request.
     int result = syscall(SYS_getsockopt, sockfd, level, optname, optval, optlen);
