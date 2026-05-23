@@ -12,6 +12,9 @@
          typeof(arr), typeof(&(arr)[0])); }))
 #endif
 
+// Optimization barrier that hides a pointer from GCC's __nonnull analysis.
+#define HIDE_NONNULL(p) asm volatile ("" : "+r" (p))
+
 typedef int (*shim_init_fn)(void);
 
 // This inline macro handles verifying symbols are resolved before calling
