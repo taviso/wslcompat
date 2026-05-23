@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <sys/xattr.h>
 #include <linux/stat.h>
 #include <errno.h>
 #include <dlfcn.h>
@@ -15,6 +16,13 @@
 #include "shim.h"
 #include "logging.h"
 #include "tunables.h"
+
+#ifndef STATX_ATTR_MOUNT_ROOT
+# define STATX_ATTR_MOUNT_ROOT 0x2000
+#endif
+#ifndef STATX_MNT_ID
+# define STATX_MNT_ID 0x1000U
+#endif
 
 SHIM_INIT(statx);
 
@@ -96,7 +104,7 @@ static int is_mount_root(int dirfd, const char *pathname, int flags, struct stat
     uint64_t ino = stx->stx_ino;
 
     // Identify the parent.
-    if (!pathname || !*pathname || (flags & AT_EMPTY_PATH)) {
+    if (!pathname || !*pathname) {
         // Parent is simply ".." relative to the FD.
         if (fstatat(dirfd, "..", &parent, flags & AT_NO_AUTOMOUNT) != 0)
             return 0;
@@ -112,20 +120,83 @@ static int is_mount_root(int dirfd, const char *pathname, int flags, struct stat
     return (dev != parent.st_dev) || (ino == parent.st_ino);
 }
 
+static struct statx_timestamp stx_ts_min(struct statx_timestamp a,
+                                         struct statx_timestamp b)
+{
+    if (a.tv_sec < b.tv_sec)
+        return a;
+
+    if (b.tv_sec < a.tv_sec)
+        return b;
+
+    if (a.tv_nsec < b.tv_nsec)
+        return a;
+    return b;
+}
+
+// Read the user.wslcompat.btime xattr (written by open on O_CREAT).
+static int read_btime_xattr(int dirfd, const char *pathname, int flags,
+                            struct statx_timestamp *out)
+{
+    ssize_t n;
+    char path[PATH_MAX];
+    char buf[64] = {0};
+
+    if (!pathname)
+        return -1;
+
+    if (*pathname != '\0') {
+        const char *target = pathname;
+        // Figure out how to reference the file via /proc.
+        if (pathname[0] != '/' && dirfd != AT_FDCWD) {
+            snprintf(path, sizeof(path), "/proc/self/fd/%d/%s", dirfd, pathname);
+            target = path;
+        }
+
+        if (flags & AT_SYMLINK_NOFOLLOW)
+            n = lgetxattr(target, "user.wslcompat.btime", buf, sizeof(buf) - 1);
+        else
+            n = getxattr(target, "user.wslcompat.btime", buf, sizeof(buf) - 1);
+
+        if (n < 0) {
+            wsldbg("failed to query btime xattr of %s, %m", target);
+            return -1;
+        }
+    } else if (dirfd == AT_FDCWD) {
+        if (getxattr(".", "user.wslcompat.btime", buf, sizeof(buf) - 1) < 0) {
+            wsldbg("failed to query btime xattr of cwd, %m");
+            return -1;
+        }
+    } else {
+        if (fgetxattr(dirfd, "user.wslcompat.btime", buf, sizeof(buf) - 1) < 0) {
+            wsldbg("failed to query btime xattr of fd=%d, %m", dirfd);
+            return -1;
+        }
+    }
+
+    if (sscanf(buf, "%lld.%u", &out->tv_sec, &out->tv_nsec) != 2) {
+        wslwarn("is the btime attribute on file %s corrupt?", pathname);
+        return -1;
+    }
+
+    return 0;
+}
+
 int statx(int dirfd, const char *pathname, int flags,
           unsigned int mask, struct statx *statxbuf) {
 
-    // Pass through the call to glibc.
-    // We force STATX_INO and STATX_TYPE so is_mount_root can reuse them.
-    // We also force STATX_MTIME and STATX_CTIME for BTIME polyfill.
-    int ret = sym_next(statx, dirfd,
-                              pathname,
-                              flags,
-                              mask | STATX_INO | STATX_TYPE | STATX_MTIME | STATX_CTIME,
-                              statxbuf);
+    int ret;
+    unsigned forced;
 
-    // If it failed, no need to do anything.
-    if (ret != 0)
+    // Check this shim is enabled.
+    if (wslcompat_passthru_self())
+        return sym_next(statx, dirfd, pathname, flags, mask, statxbuf);
+
+    // These are flags we force on that we need for our polyfill.
+    forced = STATX_INO | STATX_TYPE | STATX_MTIME | STATX_CTIME;
+
+    // Pass through the call.
+    if ((ret = sym_next(statx, dirfd, pathname, flags, mask | forced, statxbuf)) != 0)
         return ret;
 
     // Check if caller wanted STATX_MNT_ID
@@ -148,30 +219,22 @@ int statx(int dirfd, const char *pathname, int flags,
         statxbuf->stx_attributes_mask |= STATX_ATTR_MOUNT_ROOT;
     }
 
-    // Polyfill STATX_BTIME if requested but missing
+    // Polyfill STATX_BTIME if requested but missing. Prefer the xattr
+    // written by the open shim at creation time; fall back to the
+    // earlier-of-mtime/ctime heuristic if absent.
     if ((mask & STATX_BTIME) && !(statxbuf->stx_mask & STATX_BTIME)) {
-        if ((statxbuf->stx_mask & STATX_MTIME) && (statxbuf->stx_mask & STATX_CTIME)) {
-            // Use the earlier of mtime or ctime as a birth time heuristic.
-            if (statxbuf->stx_mtime.tv_sec < statxbuf->stx_ctime.tv_sec ||
-               (statxbuf->stx_mtime.tv_sec == statxbuf->stx_ctime.tv_sec &&
-                statxbuf->stx_mtime.tv_nsec < statxbuf->stx_ctime.tv_nsec)) {
-                statxbuf->stx_btime = statxbuf->stx_mtime;
-            } else {
-                statxbuf->stx_btime = statxbuf->stx_ctime;
-            }
+        // This library records btime when possible, see if we set it.
+        if (read_btime_xattr(dirfd, pathname, flags, &statxbuf->stx_btime) == 0) {
+            statxbuf->stx_mask |= STATX_BTIME;
+        } else if ((statxbuf->stx_mask & STATX_MTIME) && (statxbuf->stx_mask & STATX_CTIME)) {
+            wsldbg("No btime recorded, using the earlier of mtime or ctime as heuristic.");
+            statxbuf->stx_btime = stx_ts_min(statxbuf->stx_mtime, statxbuf->stx_ctime);
             statxbuf->stx_mask |= STATX_BTIME;
         }
     }
 
-    // Restore the mask to what the user actually requested.
-    if (!(mask & STATX_INO))
-        statxbuf->stx_mask &= ~STATX_INO;
-    if (!(mask & STATX_TYPE))
-        statxbuf->stx_mask &= ~STATX_TYPE;
-    if (!(mask & STATX_MTIME))
-        statxbuf->stx_mask &= ~STATX_MTIME;
-    if (!(mask & STATX_CTIME))
-        statxbuf->stx_mask &= ~STATX_CTIME;
+    // Clear bits we forced but the caller didn't actually request.
+    statxbuf->stx_mask &= ~(forced & ~mask);
 
     return ret;
 }

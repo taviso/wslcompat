@@ -5,7 +5,7 @@ LDFLAGS=-Wl,-z,interpose,-z,initfirst
 
 all: libwslcompat.so tools
 
-SHIMS=getsockopt setsockopt mmap fcntl ioctl statx mincore syscall rename execve execveat clock
+SHIMS=getsockopt setsockopt mmap fcntl ioctl statx mincore syscall rename execve execveat clock open
 
 .PHONY: clean test tools
 
