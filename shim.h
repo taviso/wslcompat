@@ -4,6 +4,14 @@
 #include <stdbool.h>
 #include <dlfcn.h>
 
+// Number of elements in a fixed-size array.
+#ifndef _countof
+#define _countof(arr)                                                          \
+    (sizeof(arr) / sizeof((arr)[0])                                            \
+     + sizeof(struct { int:-!!__builtin_types_compatible_p(                    \
+         typeof(arr), typeof(&(arr)[0])); }))
+#endif
+
 typedef int (*shim_init_fn)(void);
 
 // This inline macro handles verifying symbols are resolved before calling
