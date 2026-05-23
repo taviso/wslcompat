@@ -40,8 +40,9 @@ Comma-separated list of polyfills to skip.
 $ setfattr -n user.wslcompat.disabled -v "fcntl,mmap" $(which program)
 ```
 
-Valid names: `execve`, `execveat`, `fcntl`, `ioctl`, `mincore`, `mmap`,
-`renameat2`.
+Valid names: `clock_getres`, `clock_gettime`, `clock_nanosleep`, `execve`,
+`execveat`, `fcntl`, `getsockopt`, `ioctl`, `mincore`, `mmap`, `renameat2`,
+`setsockopt`.
 
 ### `enabled`
 
@@ -56,10 +57,10 @@ $ setfattr -n user.wslcompat.enabled -v "execve,execveat" $(which program)
 
 Integer log level. Higher is more verbose; output goes to `/dev/tty`.
 
-  * `0` — errors only (default)
-  * `1` — also warnings
-  * `2` — also info
-  * `3` — also debug
+  * `0` - errors only (default)
+  * `1` - also warnings
+  * `2` - also info
+  * `3` - also debug
 
 ```
 $ setfattr -n user.wslcompat.debug -v 2 $(which program)
@@ -88,4 +89,14 @@ elsewhere.
 
 ```
 $ setfattr -n user.wslcompat.ptinterp -v /lib/ld-linux.so.2 $(which program)
+```
+
+### `taioffset`
+
+Integer, default `37`.
+
+The TAI–UTC offset in seconds used by the `CLOCK_TAI` polyfills.
+
+```
+$ setfattr -n user.wslcompat.taioffset -v 38 $(which program)
 ```

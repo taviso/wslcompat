@@ -68,7 +68,8 @@ systemwide.
 $ echo /usr/local/lib/libwslcompat.so | sudo tee -a /etc/ld.so.preload
 ```
 
-If necessary, you can use [tunables](#tunables) to configure individual programs.
+If necessary, you can use [tunables](#tunables) to configure individual
+programs, or set the `__WSLCOMPAT_DISABLE` environment variable.
 
 ## Testing
 
@@ -93,6 +94,10 @@ Type `make test` to run them.
 - `RENAME_NOREPLACE` is unimplemented.
 - `execve()` rejects ELF64 binaries with mixed `PT_LOAD` `p_align`.
 - `execveat()` is unimplemented.
+- `clock_nanosleep()` rejects `CLOCK_BOOTTIME`, `CLOCK_TAI`, and `CLOCK_PROCESS_CPUTIME_ID`.
+- `clock_getres()` and `clock_gettime()` reject `CLOCK_TAI`.
+- `clock_gettime()` rejects the encoded clockids from `clock_getcpuclockid()`.
+- `SO_REUSEPORT` is accepted but is unimplemented.
 
 ## Tunables
 
@@ -151,6 +156,8 @@ We can polyfill these in future.
 - `SO_TIMESTAMP` on `AF_UNIX`
     - Needs `setsockopt`/`getsockopt` to track per-fd state and `recvmsg` to
       splice an `SCM_TIMESTAMP` cmsg captured around the underlying recv.
+- `setitimer(ITIMER_PROF)` and `setitimer(ITIMER_VIRTUAL)`
+    - WSL1 rejects both with `EINVAL`, may require a helper thread.
 
 ### Features
 
