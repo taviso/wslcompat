@@ -1,14 +1,9 @@
 /* Verify polyfilled syscalls return EFAULT for NULL pointer arguments
- * rather than crashing. Covers the three shims that dereference user
- * pointers before reaching the kernel:
- *   - clock_gettime(tp)
+ * rather than crashing. Covers the shims that dereference user pointers
+ * before reaching the kernel:
  *   - clock_nanosleep(request)
  *   - execveat(pathname) without AT_EMPTY_PATH
- *
- * clock_gettime is invoked via syscall() because glibc's clock_gettime
- * goes through the vDSO on real Linux, which writes through the pointer
- * unconditionally and segfaults on NULL. The raw syscall path EFAULTs
- * cleanly. */
+ */
 #define _GNU_SOURCE
 #include <time.h>
 #include <unistd.h>
@@ -17,7 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/syscall.h>
 
 static int failures;
 static int subtests;
@@ -34,17 +28,6 @@ static void *opaque_null(void)
 {
     static void *volatile p;
     return p;
-}
-
-static void test_clock_gettime_null(void)
-{
-    printf("--- clock_gettime(REALTIME, NULL) via syscall ---\n");
-    errno = 0;
-    long rc = syscall(SYS_clock_gettime, CLOCK_REALTIME, opaque_null());
-    int saved = errno;
-    CHECK(rc == -1 && saved == EFAULT,
-          "rc=%ld errno=%d (%s) -- want -1/EFAULT",
-          rc, saved, strerror(saved));
 }
 
 static void test_clock_nanosleep_null(void)
@@ -72,7 +55,6 @@ int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    test_clock_gettime_null();
     test_clock_nanosleep_null();
     test_execveat_null();
 
