@@ -22,7 +22,7 @@ XFAIL = name_to_handle_at memfd_create ofd_range ofd_range_hybrid ofd_compat   \
 # These tests should pass both with and without the shim.
 XPASS = shm_test inode_test flock_vs_fcntl flock_standard tcgets proc_test     \
         unlinked_test verify_xattr fcntl_unlock_noop filetime_test            \
-        proc_cputime_test times_test
+        proc_cputime_test times_test execve_null_argv_test
 
 test: $(addprefix chk_,$(TESTS)) $(addprefix xfl_,$(XFAIL)) $(addprefix xps_,$(XPASS)) ../libwslcompat.so
 	@echo ====================
