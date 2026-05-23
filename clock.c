@@ -232,7 +232,7 @@ static int encoded_cpuclock_who(clockid_t clockid)
 
     if (clockid & 4) {
         who  = RUSAGE_THREAD;
-        self = gettid();
+        self = syscall(SYS_gettid);
     }
 
     if (decoded != 0 && decoded != self)
