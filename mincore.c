@@ -13,7 +13,7 @@ SHIM_INIT(mincore);
 
 int mincore(void *addr, size_t length, unsigned char *vec)
 {
-    if (wslcompat_passthru("mincore"))
+    if (wslcompat_passthru_self())
         return sym_next(mincore, addr, length, vec);
 
     if (msync(addr, length, MS_ASYNC) != 0) {

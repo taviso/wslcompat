@@ -17,7 +17,7 @@ int getsockopt(int sockfd,
     struct sockaddr sa = {0};
     socklen_t len = sizeof(sa);
 
-    if (wslcompat_passthru("getsockopt"))
+    if (wslcompat_passthru_self())
         return syscall(SYS_getsockopt, sockfd, level, optname, optval, optlen);
 
     // Translate SO_REUSEPORT to SO_REUSEADDR (Windows semantics allow port

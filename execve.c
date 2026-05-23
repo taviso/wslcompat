@@ -74,7 +74,7 @@ int execve(const char *pathname, char *const argv[], char *const envp[])
     size_t      pos = 0;
     struct stat st;
 
-    if (wslcompat_passthru("execve"))
+    if (wslcompat_passthru_self())
         return sym_next(execve, pathname, argv, envp);
 
     sym_next(execve, pathname, argv, envp);

@@ -22,4 +22,7 @@ static inline bool wslcompat_passthru(const char *name)
     return cached_result;
 }
 
+// Convenience wrapper for shims whose name matches the polyfill.
+#define wslcompat_passthru_self() wslcompat_passthru(__func__)
+
 #endif

@@ -75,7 +75,7 @@ int ioctl(int fd, unsigned long op, ...)
 
     result = sym_next(ioctl, fd, op, arg);
 
-    if (wslcompat_passthru("ioctl"))
+    if (wslcompat_passthru_self())
         return result;
 
     if (result == 0) {

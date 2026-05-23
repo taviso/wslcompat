@@ -23,7 +23,7 @@ static void *mmap_common(void *addr,
     void *probe;
     int origflags = flags;
 
-    if (wslcompat_passthru("mmap"))
+    if (wslcompat_passthru_self())
         return (void *) syscall(SYS_mmap, addr, length, prot, flags, fd, offset);
 
     // Strip flags known to be unsupported by the WSL1 kernel.

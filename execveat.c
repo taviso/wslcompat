@@ -17,10 +17,9 @@ int execveat(int dirfd, const char *pathname,
     char        buf[PATH_MAX];
     const char *target;
 
-    // Optimization barrier: hide 'pathname' from GCC's nonnull analysis
-    asm volatile ("" : "+r" (pathname));
+    HIDE_NONNULL(pathname);
 
-    if (wslcompat_passthru("execveat"))
+    if (wslcompat_passthru_self())
         return sym_next(execveat, dirfd, pathname, argv, envp, flags);
 
     if (pathname == NULL) {

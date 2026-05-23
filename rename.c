@@ -18,7 +18,7 @@ int renameat2(int olddirfd, const char *oldpath,
               int newdirfd, const char *newpath, unsigned int flags)
 {
 
-    if (wslcompat_passthru("renameat2"))
+    if (wslcompat_passthru_self())
         return sym_next(renameat2, olddirfd, oldpath, newdirfd, newpath, flags);
 
     if (flags == RENAME_NOREPLACE) {
