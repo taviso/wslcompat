@@ -12,7 +12,7 @@ TESTS = mmap statx sockaddr socktest vtime_test mincore init_order multiproc   \
         linux_lock_test ofd_hybrid_test ofd_interop_test                       \
         posix_vs_posix posix_vs_posix_local sqlite_lock renameat2              \
         fcntl_getlk_proposed fcntl_upgrade fcntl_eintr vmin_test elf_test      \
-        execveat clock_nanosleep_cputime reuseport_test
+        execveat clock_nanosleep_cputime reuseport_test null_arg_test
 
 # These test are expected failures (may implement in future).
 XFAIL = name_to_handle_at memfd_create ofd_range ofd_range_hybrid ofd_compat   \
