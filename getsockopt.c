@@ -6,6 +6,7 @@
 #include <errno.h>
 
 #include "tunables.h"
+#include "logging.h"
 
 int getsockopt(int sockfd,
                int level,
@@ -21,8 +22,10 @@ int getsockopt(int sockfd,
 
     // Translate SO_REUSEPORT to SO_REUSEADDR (Windows semantics allow port
     // sharing via SO_REUSEADDR).
-    if (level == SOL_SOCKET && optname == SO_REUSEPORT)
+    if (level == SOL_SOCKET && optname == SO_REUSEPORT) {
+        wsldbg("fd=%d: reading SO_REUSEPORT via SO_REUSEADDR", sockfd);
         optname = SO_REUSEADDR;
+    }
 
     // Pass through the request.
     int result = syscall(SYS_getsockopt, sockfd, level, optname, optval, optlen);
