@@ -12,17 +12,19 @@ TESTS = mmap statx sockaddr socktest vtime_test mincore init_order multiproc   \
         linux_lock_test ofd_hybrid_test ofd_interop_test                       \
         posix_vs_posix posix_vs_posix_local sqlite_lock renameat2              \
         fcntl_getlk_proposed fcntl_upgrade fcntl_eintr vmin_test elf_test      \
-        execveat clock_nanosleep_cputime reuseport_test null_arg_test
+        execveat clock_nanosleep_cputime reuseport_test null_arg_test          \
+        tmpfile_test btime_test statx_edges_test
 
 # These test are expected failures (may implement in future).
 XFAIL = name_to_handle_at memfd_create ofd_range ofd_range_hybrid ofd_compat   \
         ofd posix_standard fcntl_stress_test kcmp_test ofd_pid_test            \
-        posix_pid_test cputime_signal_test rlimit_cpu_test rlimit_cpu_hard_test
+        posix_pid_test cputime_signal_test rlimit_cpu_test rlimit_cpu_hard_test \
+        tmpfile_linkat_test
 
 # These tests should pass both with and without the shim.
 XPASS = shm_test inode_test flock_vs_fcntl flock_standard tcgets proc_test     \
         unlinked_test verify_xattr fcntl_unlock_noop filetime_test            \
-        proc_cputime_test times_test execve_null_argv_test
+        proc_cputime_test times_test execve_null_argv_test o_path_test
 
 test: $(addprefix chk_,$(TESTS)) $(addprefix xfl_,$(XFAIL)) $(addprefix xps_,$(XPASS)) ../libwslcompat.so
 	@echo ====================

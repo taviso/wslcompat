@@ -14,6 +14,9 @@
 #ifndef STATX_ATTR_MOUNT_ROOT
 # define STATX_ATTR_MOUNT_ROOT 0x2000
 #endif
+#ifndef STATX_MNT_ID
+# define STATX_MNT_ID 0x1000U
+#endif
 
 int check_stx_mask(struct statx *stx, const char *name, int flag)
 {
