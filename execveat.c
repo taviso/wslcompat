@@ -9,6 +9,8 @@
 #include "tunables.h"
 #include "logging.h"
 
+#if __GLIBC_PREREQ(2, 34)
+
 SHIM_INIT(execveat);
 
 int execveat(int dirfd, const char *pathname,
@@ -40,3 +42,5 @@ int execveat(int dirfd, const char *pathname,
 
     return execve(buf, argv, envp);
 }
+
+#endif // __GLIBC_PREREQ
