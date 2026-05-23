@@ -216,6 +216,20 @@ int main(void)
     sa.sa_flags = 0; /* no SA_RESTART: let blocking calls return EINTR */
     sigaction(SIGALRM, &sa, NULL);
 
+    /* CPU clocks have a 15.625ms resolution on WSL1 (Windows scheduler
+     * tick). A fresh process may not have accumulated even one tick yet,
+     * which would make our "non-zero" gettime check fail spuriously.
+     * Burn ~25ms wall to guarantee a tick or two of CPU before sampling. */
+    struct timespec wall_t0, wall_t1;
+    clock_gettime(CLOCK_MONOTONIC, &wall_t0);
+    for (;;) {
+        for (volatile int i = 0; i < 100000; i++) { }
+        clock_gettime(CLOCK_MONOTONIC, &wall_t1);
+        long ms = (wall_t1.tv_sec - wall_t0.tv_sec) * 1000
+                + (wall_t1.tv_nsec - wall_t0.tv_nsec) / 1000000;
+        if (ms >= 25) break;
+    }
+
     printf("=== clock_getres / clock_gettime ===\n");
     for (size_t i = 0; i < sizeof(clocks)/sizeof(clocks[0]); i++) {
         test_getres_gettime(&clocks[i]);
