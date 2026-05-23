@@ -1,13 +1,14 @@
 /* Verify polyfilled syscalls return EFAULT for NULL pointer arguments
- * (where Linux does) rather than crashing. Covers the three shims that
- * dereference user pointers before reaching the kernel:
+ * rather than crashing. Covers the three shims that dereference user
+ * pointers before reaching the kernel:
  *   - clock_gettime(tp)
  *   - clock_nanosleep(request)
  *   - execveat(pathname) without AT_EMPTY_PATH
  *
- * Calling glibc with NULL would normally let __nonnull/nonnull attributes
- * either trigger a warning or be elided; we cast through a volatile
- * pointer to evade both. */
+ * clock_gettime is invoked via syscall() because glibc's clock_gettime
+ * goes through the vDSO on real Linux, which writes through the pointer
+ * unconditionally and segfaults on NULL. The raw syscall path EFAULTs
+ * cleanly. */
 #define _GNU_SOURCE
 #include <time.h>
 #include <unistd.h>
@@ -16,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/syscall.h>
 
 static int failures;
 static int subtests;
@@ -36,12 +38,12 @@ static void *opaque_null(void)
 
 static void test_clock_gettime_null(void)
 {
-    printf("--- clock_gettime(REALTIME, NULL) ---\n");
+    printf("--- clock_gettime(REALTIME, NULL) via syscall ---\n");
     errno = 0;
-    int rc = clock_gettime(CLOCK_REALTIME, opaque_null());
+    long rc = syscall(SYS_clock_gettime, CLOCK_REALTIME, opaque_null());
     int saved = errno;
     CHECK(rc == -1 && saved == EFAULT,
-          "rc=%d errno=%d (%s) -- want -1/EFAULT",
+          "rc=%ld errno=%d (%s) -- want -1/EFAULT",
           rc, saved, strerror(saved));
 }
 

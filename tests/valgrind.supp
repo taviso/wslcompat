@@ -5,3 +5,10 @@
    ...
    fun:mincore
 }
+{
+   null_arg_test_deliberate_null
+   Memcheck:Param
+   clock_gettime(tp)
+   ...
+   fun:test_clock_gettime_null
+}
