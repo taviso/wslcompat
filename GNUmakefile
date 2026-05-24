@@ -12,6 +12,8 @@ SHIMS=getsockopt setsockopt mmap fcntl ioctl statx mincore syscall rename execve
 libwslcompat.so: $(SHIMS:=.o) tunables.o logging.o
 	gcc -shared $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
+open.o: proc.c
+
 tools:
 	$(MAKE) -C tools
 

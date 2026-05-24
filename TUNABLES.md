@@ -116,6 +116,18 @@ Set to `0` to disable handler dispatch entirely and pass every open straight thr
 $ setfattr -n user.wslcompat.redirect -v 0 $(which program)
 ```
 
+### `mmap_min_addr`
+
+Integer, default `4096`.
+
+The value returned when a program reads `/proc/sys/vm/mmap_min_addr`, which
+WSL1 does not expose. The default matches the address the WSL1 kernel actually
+enforces, so most software should not need to override it.
+
+```
+$ setfattr -n user.wslcompat.mmap_min_addr -v 65536 $(which program)
+```
+
 ### `btime`
 
 The creation time of a file as reported by `statx()`, usually set automatically.

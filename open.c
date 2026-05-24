@@ -23,13 +23,16 @@ SHIM_INIT(openat, open);
 typedef int (*open_handler_fn)(int dirfd, const char *pathname, int flags,
                                mode_t mode, int *out_fd);
 
+// File path handlers
+#include "proc.c"
+
 // Hardcoded dispatch table for paths we polyfill. The pattern field is
 // an fnmatch(3) pattern with FNM_PATHNAME semantics.
 static const struct {
     const char *pattern;
     open_handler_fn fn;
 } dispatch[] = {
-    // { "/proc/self/foo", handle_proc_foo },
+    { "/proc/sys/vm/mmap_min_addr", handle_mmap_min_addr },
 };
 
 // WSL1 doesn't recognize O_TMPFILE, create a randomly-named file, then unlink.
