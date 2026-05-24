@@ -4,6 +4,14 @@ CPPFLAGS =
 LDLIBS = -lrt
 VGFLAGS = --quiet --error-exitcode=2 --suppressions=valgrind.supp
 
+# Default to parallel builds, these tests can be slow.
+MAKEFLAGS += -j$(shell nproc)
+
+# Fail early with a clear message if the test prerequisites are missing.
+$(foreach tool,valgrind patchelf,                                              \
+    $(if $(shell command -v $(tool) 2>/dev/null),,                             \
+        $(error required tool '$(tool)' not found in $$PATH)))
+
 .PHONY: clean test linux
 
 # These tests should fail without libwslcompat, and then pass when with.

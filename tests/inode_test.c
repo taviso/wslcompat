@@ -9,12 +9,12 @@
 
 int main() {
     char tmpfile[] = "/tmp/inode_test_XXXXXX";
-    char symlink_path[] = "/tmp/inode_test_symlink";
+    char symlink_path[] = "/tmp/inode_test_symlink_XXXXXX";
     struct stat st1, st2, st3;
 
     int fd1 = mkostemp(tmpfile, O_RDWR);
     if (fd1 == -1) err(EXIT_FAILURE, "mkostemp");
-    
+
     if (fstat(fd1, &st1) == -1) err(EXIT_FAILURE, "fstat fd1");
 
     int fd2 = open(tmpfile, O_RDWR);
@@ -22,6 +22,10 @@ int main() {
 
     if (fstat(fd2, &st2) == -1) err(EXIT_FAILURE, "fstat fd2");
 
+    /* Reserve a unique path for the symlink, then remove the placeholder. */
+    int slfd = mkstemp(symlink_path);
+    if (slfd == -1) err(EXIT_FAILURE, "mkstemp symlink");
+    close(slfd);
     unlink(symlink_path);
     if (symlink(tmpfile, symlink_path) == -1) err(EXIT_FAILURE, "symlink");
 

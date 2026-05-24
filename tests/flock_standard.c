@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-static const char *tmp_path = "/tmp/flock_standard_test";
+static char tmp_path[] = "/tmp/flock_standard_XXXXXX";
 
 #define TEST_PASS(msg) do { printf("  [PASS] %s\n", msg); _exit(0); } while (0)
 #define TEST_FAIL(msg, reason) do { printf("  [FAIL] %s: %s\n", msg, reason); _exit(1); } while (0)
@@ -97,6 +97,11 @@ void test_close_persistence() {
 
 int main() {
     printf("flock() Standard Semantics Test\n");
+
+    int seed = mkstemp(tmp_path);
+    if (seed < 0) { perror("mkstemp"); return 1; }
+    close(seed);
+
     test_exclusivity();
     test_shared();
     test_inheritance();
