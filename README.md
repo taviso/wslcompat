@@ -1,10 +1,12 @@
 # wslcompat
 
-wslcompat is a compatibility layer that enables more software to work on WSL1.
+wslcompat is a compatibility library that makes more software work on WSL1.
 
 It provides "polyfills" for missing system calls and features, filling the gaps
-that prevent your software from running. This doesn't require any changes to
+that prevents some software from running. This doesn't require any changes to
 the binaries or the underlying kernel.
+
+A full list of the fixes is in [Available Polyfills](#available-polyfills).
 
 ## Building
 
@@ -54,7 +56,7 @@ $ LD_PRELOAD=libwslcompat.so python multiproc.py
 hello
 ```
 
-If you want this to be permanent, simply try this:
+If you want this to be permanent, do something like this:
 
 ```
 $ sudo patchelf --add-needed libwslcompat.so /usr/bin/python
@@ -95,10 +97,10 @@ Type `make test` to run them.
 - `RENAME_NOREPLACE` is unimplemented.
 - `execve()` rejects ELF64 binaries with mixed `PT_LOAD` `p_align`.
 - `execveat()` is unimplemented.
-- `clock_nanosleep()` rejects `CLOCK_BOOTTIME`, `CLOCK_TAI`, and `CLOCK_PROCESS_CPUTIME_ID`.
+- `clock_nanosleep()` rejects various clocks.
 - `clock_getres()` and `clock_gettime()` reject `CLOCK_TAI`.
-- `clock_gettime()` rejects the encoded clockids from `clock_getcpuclockid()`.
-- `SO_REUSEPORT` is accepted but is unimplemented.
+- `clock_gettime()` rejects the encoded clockids.
+- `SO_REUSEPORT` is accepted, but unimplemented.
 - `O_TMPFILE` is unimplemented.
 
 ## Tunables
@@ -130,12 +132,12 @@ For further discussion on the problem please see [LOCKS.md](LOCKS.md).
 
 ## Elf64 Loading
 
-The Elf64 loader in WSL1 will reject any binary that has `PT_LOAD` program
-headers with non-uniform alignment. These are perfectly valid and common
-programs, so an `execve` polyfill attempts to detect this case.
+The Elf64 loader in WSL1 will reject any binary that has any `PT_LOAD` headers
+with non-uniform alignment. These are perfectly valid and common programs, so
+an `execve` polyfill attempts to detect this case.
 
-The polyfill can re-exec binaries via their interpreter, but this only works
-for dynamically linked binaries.
+The polyfill can re-exec binaries that would fail via their interpreter, but
+this only works for dynamically linked binaries.
 
 For static binaries, you can use `elfclamp` to patch the binary in place.
 
@@ -143,23 +145,21 @@ For static binaries, you can use `elfclamp` to patch the binary in place.
 $ elfclamp /path/to/program
 ```
 
-This unifies every `PT_LOAD` `p_align` to the smallest value observed, which
-preserves the ELF congruence rule. Already-uniform binaries are left alone.
+This unifies (clamps) every `PT_LOAD` `p_align` to the smallest value observed.
 
 ## Future
 
 ### Polyfills
 
-We can polyfill these in future.
+We could polyfill these in future.
 
-- `kcmp`
-    - For the `pid1`==`pid2` and `KCMP_FILE` case, we can use toggle flags with
-      `F_GETFL`/`F_SETFL` to see if a file is the same.
-- `SO_TIMESTAMP` on `AF_UNIX`
-    - Needs `setsockopt`/`getsockopt` to track per-fd state and `recvmsg` to
-      splice an `SCM_TIMESTAMP` cmsg captured around the underlying recv.
-- `setitimer(ITIMER_PROF)` and `setitimer(ITIMER_VIRTUAL)`
-    - WSL1 rejects both with `EINVAL`, may require a helper thread.
+- `kcmp` - For the `pid1`==`pid2` and `KCMP_FILE` case, we can use toggle flags with
+  `F_GETFL`/`F_SETFL` to see if a file is the same.
+- `SO_TIMESTAMP` on `AF_UNIX` - Needs `setsockopt`/`getsockopt` to track per-fd
+  state and `recvmsg` to splice an `SCM_TIMESTAMP` cmsg captured around the
+  underlying recv.
+- `setitimer(ITIMER_PROF)` and `setitimer(ITIMER_VIRTUAL)` - WSL1 rejects both
+  with `EINVAL`, may require a helper thread.
 - `linkat` on an `O_TMPFILE` fd
 
 ### Features

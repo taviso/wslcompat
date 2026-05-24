@@ -73,7 +73,7 @@ Boolean, default `true`.
 This tunable controls whether the `execve` polyfill passes the caller's
 `argv[0]` through to ld-linux's `--argv0` flag when re-executing a binary.
 
-> You may need to set this on systems with `glibc` < 2.33.
+> This option only takes effect on systems with `glibc` > 2.33.
 
 ```
 $ setfattr -n user.wslcompat.argv0 -v 0 $(which program)
