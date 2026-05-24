@@ -9,8 +9,9 @@ static int handle_mmap_min_addr(int dirfd, const char *pathname, int flags,
     // Calculate the value to expose.
     n = snprintf(buf, sizeof(buf), "%ld\n", wslcompat_tunable_int("mmap_min_addr", 4096));
 
-    // Create an O_TMPFILE fd we can return.
-    if ((*out_fd = open("/tmp", O_RDWR | O_TMPFILE, 0600)) < 0)
+    // Create an O_TMPFILE fd we can return. Propagate O_CLOEXEC from the
+    // caller so the fd doesn't leak across exec().
+    if ((*out_fd = open("/tmp", O_RDWR | O_TMPFILE | (flags & O_CLOEXEC), 0600)) < 0)
         return 0;
 
     wsldbg("generated synthetic fd %d for %s => '%s'", *out_fd, pathname, buf);
