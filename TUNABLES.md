@@ -101,6 +101,21 @@ The TAI–UTC offset in seconds used by the `CLOCK_TAI` polyfills.
 $ setfattr -n user.wslcompat.taioffset -v 38 $(which program)
 ```
 
+### `redirect`
+
+Boolean, default `true`.
+
+Controls whether `open`/`openat` will attempt to redirect missing paths.
+
+This is primarily used to synthesize content for paths in `/proc` and `/sys` that
+wsl does not provide, but adds a small performance cost for `open`.
+
+Set to `0` to disable handler dispatch entirely and pass every open straight through.
+
+```
+$ setfattr -n user.wslcompat.redirect -v 0 $(which program)
+```
+
 ### `btime`
 
 The creation time of a file as reported by `statx()`, usually set automatically.
