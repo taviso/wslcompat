@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <gnu/libc-version.h>
 #include <elf.h>
 
 #include "shim.h"
@@ -112,9 +113,11 @@ int execve(const char *pathname, char *const argv[], char *const envp[])
     new_argv[pos++] = (char *) interp;
 
     // Optionally use the new --argv0 feature since glibc 2.33.
-    if (wslcompat_tunable_bool("argv0", true)) {
-        new_argv[pos++] = "--argv0";
-        new_argv[pos++] = (char *)(argv[0] ? argv[0] : pathname);
+    if (strverscmp(gnu_get_libc_version(), "2.33") >= 0) {
+        if (wslcompat_tunable_bool("argv0", true)) {
+            new_argv[pos++] = "--argv0";
+            new_argv[pos++] = (char *)(argv[0] ? argv[0] : pathname);
+        }
     }
 
     new_argv[pos++] = (char *) pathname;
