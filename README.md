@@ -102,6 +102,7 @@ Type `make test` to run them.
 - `clock_gettime()` rejects the encoded clockids.
 - `SO_REUSEPORT` is accepted, but unimplemented.
 - `O_TMPFILE` is unimplemented.
+- `mmap_min_addr` sysctl is not available.
 
 ## Tunables
 
