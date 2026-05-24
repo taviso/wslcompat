@@ -9,18 +9,19 @@ long        wslcompat_tunable_int(const char *key, long dflt);
 bool        wslcompat_tunable_bool(const char *key, bool dflt);
 bool        wslcompat_tunable_list(const char *key, const char *contains);
 
-// A cached check for enabled/disabled tunables.
-static inline bool wslcompat_passthru(const char *name)
-{
-    static const char *cached_name;
-    static bool        cached_result;
-
-    if (__builtin_expect(cached_name != name, 0)) {
-        cached_result = !wslcompat_enabled(name);
-        cached_name   = name;
-    }
-    return cached_result;
-}
+// A per-callsite cache for enabled/disabled tunables. By using a macro, each
+// shim gets its own private cache, avoiding contention between different
+// functions and providing thread-safety (via benign races) without TLS.
+#define wslcompat_passthru(name) ({                     \
+    static const char *__cached_name;                   \
+    static bool        __cached_result;                 \
+    const char *__name = (name);                        \
+    if (__builtin_expect(__cached_name != __name, 0)) { \
+        __cached_result = !wslcompat_enabled(__name);   \
+        __cached_name   = __name;                       \
+    }                                                   \
+    __cached_result;                                    \
+})
 
 // Convenience wrapper for shims whose name matches the polyfill.
 #define wslcompat_passthru_self() wslcompat_passthru(__func__)
