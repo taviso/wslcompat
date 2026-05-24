@@ -1,11 +1,10 @@
 # wslcompat
 
-wslcompat is a compatibility layer that makes more software work on WSL1.
+wslcompat is a compatibility layer that enables more software to work on WSL1.
 
-The idea is to add "polyfills" - userspace implementations of the missing
-functionality - that fill in the gaps preventing your software from running.
-
-This doesn't require any changes to the binaries or the underlying kernel.
+It provides "polyfills" for missing system calls and features, filling the gaps
+that prevent your software from running. This doesn't require any changes to
+the binaries or the underlying kernel.
 
 ## Building
 
