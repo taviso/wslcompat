@@ -11,14 +11,7 @@
 #include <string.h>
 #include <errno.h>
 
-static int failures;
-static int subtests;
-
-#define CHECK(cond, fmt, ...) do {                                  \
-    subtests++;                                                     \
-    if (cond) printf("  PASS: " fmt "\n", ##__VA_ARGS__);           \
-    else { printf("  FAIL: " fmt "\n", ##__VA_ARGS__); failures++; }\
-} while (0)
+#include "testutil.h"
 
 /* Open a socket of the requested type, optionally set SO_REUSEPORT or
  * SO_REUSEADDR, then bind to 127.0.0.1:port (port=0 means kernel-assigned).
@@ -74,19 +67,17 @@ static const char *opt_name(int opt)
 
 static void test_share(int type, int opt, const char *label)
 {
-    printf("--- %s with %s ---\n", label, opt_name(opt));
+    STATUS("--- %s with %s ---", label, opt_name(opt));
     in_port_t port;
     int a = open_and_bind(type, opt, 0, &port);
     if (a < 0) {
-        printf("  FAIL: first bind: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "first bind: %s", strerror(errno));
         return;
     }
     int b = open_and_bind(type, opt, port, NULL);
     if (b < 0) {
-        printf("  FAIL: second bind to port %u: %s\n",
-               (unsigned)port, strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "second bind to port %u: %s",
+              (unsigned)port, strerror(errno));
         close(a);
         return;
     }
@@ -98,20 +89,18 @@ static void test_share(int type, int opt, const char *label)
 
 static void test_no_share(int type, const char *label)
 {
-    printf("--- %s without SO_REUSEPORT ---\n", label);
+    STATUS("--- %s without SO_REUSEPORT ---", label);
     in_port_t port;
     int a = open_and_bind(type, 0, 0, &port);
     if (a < 0) {
-        printf("  FAIL: first bind: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "first bind: %s", strerror(errno));
         return;
     }
     errno = 0;
     int b = open_and_bind(type, 0, port, NULL);
     int saved_errno = errno;
     if (b >= 0) {
-        printf("  FAIL: %s: second bind unexpectedly succeeded\n", label);
-        failures++; subtests++;
+        CHECK(0, "%s: second bind unexpectedly succeeded", label);
         close(a);
         close(b);
         return;
@@ -126,19 +115,17 @@ static void test_no_share(int type, const char *label)
  * could detect "app asked for REUSEPORT" after the fact. */
 static void test_getsockopt_roundtrip(int type, const char *label)
 {
-    printf("--- %s getsockopt(SO_REUSEPORT) round-trip ---\n", label);
+    STATUS("--- %s getsockopt(SO_REUSEPORT) round-trip ---", label);
     int fd = socket(AF_INET, type, 0);
     if (fd < 0) {
-        printf("  FAIL: socket: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "socket: %s", strerror(errno));
         return;
     }
 
     int got = -1;
     socklen_t len = sizeof(got);
     if (getsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &got, &len) != 0) {
-        printf("  FAIL: getsockopt before set: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "getsockopt before set: %s", strerror(errno));
         close(fd);
         return;
     }
@@ -146,8 +133,7 @@ static void test_getsockopt_roundtrip(int type, const char *label)
 
     int on = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on)) != 0) {
-        printf("  FAIL: setsockopt(1): %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "setsockopt(1): %s", strerror(errno));
         close(fd);
         return;
     }
@@ -155,8 +141,7 @@ static void test_getsockopt_roundtrip(int type, const char *label)
     got = -1;
     len = sizeof(got);
     if (getsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &got, &len) != 0) {
-        printf("  FAIL: getsockopt after set: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "getsockopt after set: %s", strerror(errno));
         close(fd);
         return;
     }
@@ -178,7 +163,5 @@ int main(void)
     test_no_share(SOCK_STREAM, "TCP");
     test_no_share(SOCK_DGRAM,  "UDP");
 
-    printf("\n%d/%d subtests passed, %d failed\n",
-           subtests - failures, subtests, failures);
-    return failures == 0 ? 0 : 1;
+    TEST_REPORT();
 }

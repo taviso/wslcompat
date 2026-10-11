@@ -32,14 +32,7 @@
 # define STATX_ATTR_MOUNT_ROOT 0x2000
 #endif
 
-static int failures;
-static int subtests;
-
-#define CHECK(cond, fmt, ...) do {                                  \
-    subtests++;                                                     \
-    if (cond) printf("  PASS: " fmt "\n", ##__VA_ARGS__);           \
-    else { printf("  FAIL: " fmt "\n", ##__VA_ARGS__); failures++; }\
-} while (0)
+#include "testutil.h"
 
 #define BTIME_XATTR        "user.wslcompat.btime"
 #define MARKER_SEC         1234567890LL
@@ -61,33 +54,30 @@ static void cleanup(void)
  * xattr correctly. Before the fix this routed to fgetxattr(-100). */
 static void test_at_fdcwd_empty_path(void)
 {
-    printf("--- statx(AT_FDCWD, \"\", AT_EMPTY_PATH) reads cwd xattr ---\n");
+    STATUS("--- statx(AT_FDCWD, \"\", AT_EMPTY_PATH) reads cwd xattr ---");
 
     snprintf(tmpdir, sizeof(tmpdir), "/tmp/wslcompat_statx_%d", (int)getpid());
     rmdir(tmpdir);
     if (mkdir(tmpdir, 0700) != 0) {
-        printf("  FAIL: mkdir: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "mkdir: %s", strerror(errno));
         return;
     }
     time_t mkdir_at = time(NULL);
 
     if (setxattr(tmpdir, BTIME_XATTR, MARKER_VALUE,
                  strlen(MARKER_VALUE), 0) != 0) {
-        printf("  SKIP: setxattr on dir: %s (fs may not support xattrs)\n",
+        STATUS("  SKIP: setxattr on dir: %s (fs may not support xattrs)",
                strerror(errno));
         return;
     }
     if (chdir(tmpdir) != 0) {
-        printf("  FAIL: chdir: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "chdir: %s", strerror(errno));
         return;
     }
 
     struct statx stx = {0};
     if (statx(AT_FDCWD, "", AT_EMPTY_PATH, STATX_BTIME, &stx) != 0) {
-        printf("  FAIL: statx: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "statx: %s", strerror(errno));
         return;
     }
 
@@ -104,15 +94,14 @@ static void test_at_fdcwd_empty_path(void)
  * btime via the fd's inode, not via lgetxattr on a procfs symlink. */
 static void test_at_empty_path_nofollow(void)
 {
-    printf("--- statx(fd, \"\", AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW) ---\n");
+    STATUS("--- statx(fd, \"\", AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW) ---");
 
     snprintf(tmpfile_path, sizeof(tmpfile_path),
              "/tmp/wslcompat_statxf_%d", (int)getpid());
     unlink(tmpfile_path);
     int fd = open(tmpfile_path, O_CREAT | O_EXCL | O_RDWR, 0600);
     if (fd < 0) {
-        printf("  FAIL: open: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "open: %s", strerror(errno));
         return;
     }
     time_t open_at = time(NULL);
@@ -121,7 +110,7 @@ static void test_at_empty_path_nofollow(void)
      * shim may have set, so we can tell shim-read from native-read). */
     if (fsetxattr(fd, BTIME_XATTR, MARKER_VALUE,
                   strlen(MARKER_VALUE), 0) != 0) {
-        printf("  SKIP: fsetxattr: %s (fs may not support xattrs)\n",
+        STATUS("  SKIP: fsetxattr: %s (fs may not support xattrs)",
                strerror(errno));
         close(fd);
         return;
@@ -130,8 +119,7 @@ static void test_at_empty_path_nofollow(void)
     struct statx stx = {0};
     if (statx(fd, "", AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW,
               STATX_BTIME, &stx) != 0) {
-        printf("  FAIL: statx: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "statx: %s", strerror(errno));
         close(fd);
         return;
     }
@@ -153,19 +141,18 @@ static void test_at_empty_path_nofollow(void)
  * parent of dirfd (=/) and report /proc/self as a mount root. */
 static void test_is_mount_root_emptypath_with_pathname(void)
 {
-    printf("--- is_mount_root: AT_EMPTY_PATH + non-empty pathname ---\n");
+    STATUS("--- is_mount_root: AT_EMPTY_PATH + non-empty pathname ---");
 
     int rootfd = open("/", O_RDONLY | O_DIRECTORY);
     if (rootfd < 0) {
-        printf("  FAIL: open /: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "open /: %s", strerror(errno));
         return;
     }
 
     struct statx stx = {0};
     if (statx(rootfd, "/proc/self", AT_EMPTY_PATH,
               STATX_BASIC_STATS, &stx) != 0) {
-        printf("  SKIP: statx on /proc/self: %s\n", strerror(errno));
+        STATUS("  SKIP: statx on /proc/self: %s", strerror(errno));
         close(rootfd);
         return;
     }
@@ -179,6 +166,67 @@ static void test_is_mount_root_emptypath_with_pathname(void)
     close(rootfd);
 }
 
+static void test_long_pathname(void)
+{
+    STATUS("--- statx: VERY long relative pathname ---");
+
+    char dirname[] = "/tmp/wslcompat_statx_long_XXXXXX";
+    if (!mkdtemp(dirname)) {
+        CHECK(0, "mkdtemp: %s", strerror(errno));
+        return;
+    }
+
+    char rel_path[4096];
+    rel_path[0] = '\0';
+    for (int i = 0; i < 15; i++) {
+        char chunk[250];
+        memset(chunk, 'a', 249);
+        chunk[249] = '\0';
+        if (i > 0) strcat(rel_path, "/");
+        strcat(rel_path, chunk);
+
+        char full[8192];
+        snprintf(full, sizeof(full), "%s/%s", dirname, rel_path);
+        if (i < 14) {
+            if (mkdir(full, 0700) != 0) {
+                if (errno != ENAMETOOLONG) {
+                    CHECK(0, "mkdir: %s", strerror(errno));
+                }
+                break;
+            }
+        }
+    }
+
+    char full[8192];
+    snprintf(full, sizeof(full), "%s/%s", dirname, rel_path);
+    int fd = open(full, O_CREAT | O_RDWR, 0600);
+    if (fd < 0 && errno == ENAMETOOLONG) {
+        STATUS("  SKIP: filesystem doesn't support paths this long");
+        return;
+    }
+    if (fd < 0) {
+        CHECK(0, "open long path: %s", strerror(errno));
+        return;
+    }
+    close(fd);
+
+    int dirfd = open(dirname, O_RDONLY | O_DIRECTORY);
+    if (dirfd < 0) {
+        CHECK(0, "open dirfd: %s", strerror(errno));
+        return;
+    }
+
+    struct statx stx = {0};
+    errno = 0;
+    if (statx(dirfd, rel_path, 0, STATX_BASIC_STATS | STATX_BTIME, &stx) != 0) {
+        CHECK(0, "statx on long path failed: %s", strerror(errno));
+    } else {
+        CHECK(errno == 0, "statx succeeded and did not pollute errno (errno=%d)", errno);
+    }
+
+    close(dirfd);
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -187,8 +235,7 @@ int main(void)
     test_at_fdcwd_empty_path();
     test_at_empty_path_nofollow();
     test_is_mount_root_emptypath_with_pathname();
+    test_long_pathname();
 
-    printf("\n%d/%d subtests passed, %d failed\n",
-           subtests - failures, subtests, failures);
-    return failures == 0 ? 0 : 1;
+    TEST_REPORT();
 }

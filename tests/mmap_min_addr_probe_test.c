@@ -17,14 +17,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-static int failures;
-static int subtests;
-
-#define CHECK(cond, fmt, ...) do {                                  \
-    subtests++;                                                     \
-    if (cond) printf("  PASS: " fmt "\n", ##__VA_ARGS__);           \
-    else { printf("  FAIL: " fmt "\n", ##__VA_ARGS__); failures++; }\
-} while (0)
+#include "testutil.h"
 
 int main(void)
 {
@@ -41,10 +34,35 @@ int main(void)
     if (fd >= 0) {
         ssize_t n = read(fd, buf, sizeof(buf) - 1);
         CHECK(n > 0, "read(/proc/sys/vm/mmap_min_addr): %s", strerror(errno));
+
+        char buf2[64] = {0};
+        off_t end_pos = lseek(fd, 0, SEEK_END);
+        CHECK(end_pos == 0, "SEEK_END returns 0 (like real Linux)");
+
+        off_t start_pos = lseek(fd, 0, SEEK_SET);
+        CHECK(start_pos == 0, "SEEK_SET returns 0");
+
+        ssize_t n2 = pread(fd, buf2, sizeof(buf2) - 1, 0);
+        CHECK(n2 == n, "pread length %zd", n2);
+        CHECK(strcmp(buf, buf2) == 0, "pread matches read");
+
+        errno = 0;
+        off_t bad_pos = lseek(fd, -100, SEEK_SET);
+        CHECK(bad_pos == -1 && errno == EINVAL, "SEEK_SET negative rejected");
+
+        errno = 0;
+        bad_pos = lseek(fd, 0, 42);
+        CHECK(bad_pos == -1 && errno == EINVAL, "invalid whence rejected");
+
+        lseek(fd, 0, SEEK_SET);
+        errno = 0;
+        bad_pos = lseek(fd, -1, SEEK_CUR);
+        CHECK(bad_pos == -1 && errno == EINVAL, "SEEK_CUR negative out of bounds rejected");
+
         close(fd);
         if (n > 0) {
             advertised = strtoul(buf, NULL, 10);
-            printf("  INFO: /proc says %lu\n", advertised);
+            STATUS("  INFO: /proc says %lu", advertised);
 
             /* Kernel enforces page granularity even when the sysctl is finer. */
             enforced = (advertised + pagesize - 1) & ~(pagesize - 1);
@@ -60,7 +78,7 @@ int main(void)
             break;
         }
         if (errno != EPERM && errno != EACCES && errno != EINVAL) {
-            printf("  INFO: mmap(%p) failed unexpectedly: %s\n",
+            STATUS("  INFO: mmap(%p) failed unexpectedly: %s",
                    (void *)addr, strerror(errno));
             break;
         }
@@ -69,14 +87,12 @@ int main(void)
     CHECK(probed != 0, "found a page the kernel accepts below 16M");
 
     if (probed) {
-        printf("  INFO: lowest accepted MAP_FIXED address = %lu (0x%lx)\n",
+        STATUS("  INFO: lowest accepted MAP_FIXED address = %lu (0x%lx)",
                probed, probed);
     }
 
     CHECK(probed == enforced,
           "probed (%lu) matches enforced /proc value (%lu)", probed, enforced);
 
-    printf("\n%d/%d subtests passed, %d failed\n",
-           subtests - failures, subtests, failures);
-    return failures == 0 ? 0 : 1;
+    TEST_REPORT();
 }

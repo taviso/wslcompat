@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <sys/xattr.h>
+#include <sys/syscall.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
@@ -60,10 +61,10 @@ static void __attribute__((constructor)) init(void)
     ssize_t size;
     int     fd;
 
-    if ((fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC)) < 0)
+    if ((fd = syscall(SYS_open, "/proc/self/exe", O_RDONLY | O_CLOEXEC)) < 0)
         return;
 
-    if ((n = flistxattr(fd, list, sizeof(list) - 1)) <= 0)
+    if ((n = syscall(SYS_flistxattr, fd, list, sizeof(list) - 1)) <= 0)
         goto cleanup;
 
     for (char * cur = list; cur - list < n; cur += strlen(cur) + 1) {
@@ -72,7 +73,7 @@ static void __attribute__((constructor)) init(void)
             continue;
 
         // Fetch the value.
-        if ((size = fgetxattr(fd, cur, val, sizeof(val) - 1)) < 0)
+        if ((size = syscall(SYS_fgetxattr, fd, cur, val, sizeof(val) - 1)) < 0)
             continue;
 
         // fgetxattr returns raw bytes without a terminator.
@@ -84,7 +85,7 @@ static void __attribute__((constructor)) init(void)
     }
 
   cleanup:
-    close(fd);
+    syscall(SYS_close, fd);
 }
 
 const char *wslcompat_tunable_str(const char *key, const char *dflt)

@@ -15,23 +15,19 @@
 #include <pthread.h>
 #include <valgrind/valgrind.h>
 #include <valgrind/valgrind.h>
+#include "testutil.h"
 
-static int failures;
-static int subtests;
-
-#define CHECK(cond, fmt, ...) do {                                  \
-    subtests++;                                                     \
-    if (cond) printf("  PASS: " fmt "\n", ##__VA_ARGS__);           \
-    else { printf("  FAIL: " fmt "\n", ##__VA_ARGS__); failures++; }\
-} while (0)
-
-static void burn_ms(long want_ms)
+// Spin until this thread has consumed `want_ms` of CPU time. Wall-
+// clock gating would under-count under load (a parallel `make -j` run
+// shares CPU with other tests, so 200ms wall might be only 100ms CPU)
+// and break the downstream "CPU advanced by >= N" assertions.
+static void burn_cpu_ms(long want_ms)
 {
     struct timespec t0, t1;
-    clock_gettime(CLOCK_MONOTONIC, &t0);
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t0);
     for (;;) {
         for (volatile int i = 0; i < 100000; i++) { }
-        clock_gettime(CLOCK_MONOTONIC, &t1);
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t1);
         long ms = (t1.tv_sec - t0.tv_sec) * 1000
                 + (t1.tv_nsec - t0.tv_nsec) / 1000000;
         if (ms >= want_ms) return;
@@ -47,27 +43,25 @@ static long tv_to_us(const struct timeval *tv)
 
 static void test_times(void)
 {
-    printf("--- times(2) ---\n");
+    STATUS("--- times(2) ---");
     struct tms t0, t1;
     clock_t r0 = times(&t0);
     if (r0 == (clock_t)-1) {
-        printf("  FAIL: times(): %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "times(): %s", strerror(errno));
         return;
     }
-    printf("  before: utime=%ld stime=%ld cutime=%ld cstime=%ld (return=%ld)\n",
+    STATUS("  before: utime=%ld stime=%ld cutime=%ld cstime=%ld (return=%ld)",
            (long)t0.tms_utime, (long)t0.tms_stime,
            (long)t0.tms_cutime, (long)t0.tms_cstime, (long)r0);
 
-    burn_ms(200);
+    burn_cpu_ms(200);
 
     clock_t r1 = times(&t1);
     if (r1 == (clock_t)-1) {
-        printf("  FAIL: times() #2: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "times() #2: %s", strerror(errno));
         return;
     }
-    printf("  after:  utime=%ld stime=%ld cutime=%ld cstime=%ld (return=%ld)\n",
+    STATUS("  after:  utime=%ld stime=%ld cutime=%ld cstime=%ld (return=%ld)",
            (long)t1.tms_utime, (long)t1.tms_stime,
            (long)t1.tms_cutime, (long)t1.tms_cstime, (long)r1);
 
@@ -85,25 +79,23 @@ static void test_times(void)
 
 static void test_getrusage_self(void)
 {
-    printf("--- getrusage(RUSAGE_SELF) ---\n");
+    STATUS("--- getrusage(RUSAGE_SELF) ---");
     struct rusage r0, r1;
     if (getrusage(RUSAGE_SELF, &r0) != 0) {
-        printf("  FAIL: getrusage(RUSAGE_SELF): %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "getrusage(RUSAGE_SELF): %s", strerror(errno));
         return;
     }
-    printf("  before: utime=%ld.%06ld stime=%ld.%06ld\n",
+    STATUS("  before: utime=%ld.%06ld stime=%ld.%06ld",
            (long)r0.ru_utime.tv_sec, (long)r0.ru_utime.tv_usec,
            (long)r0.ru_stime.tv_sec, (long)r0.ru_stime.tv_usec);
 
-    burn_ms(200);
+    burn_cpu_ms(200);
 
     if (getrusage(RUSAGE_SELF, &r1) != 0) {
-        printf("  FAIL: getrusage #2: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "getrusage #2: %s", strerror(errno));
         return;
     }
-    printf("  after:  utime=%ld.%06ld stime=%ld.%06ld\n",
+    STATUS("  after:  utime=%ld.%06ld stime=%ld.%06ld",
            (long)r1.ru_utime.tv_sec, (long)r1.ru_utime.tv_usec,
            (long)r1.ru_stime.tv_sec, (long)r1.ru_stime.tv_usec);
 
@@ -116,7 +108,7 @@ static void test_getrusage_self(void)
 static void *thread_burner(void *arg)
 {
     struct rusage *out = arg;
-    burn_ms(200);
+    burn_cpu_ms(200);
     if (getrusage(RUSAGE_THREAD, out) != 0) {
         out->ru_utime.tv_sec  = -1;
         out->ru_utime.tv_usec = errno;
@@ -127,33 +119,30 @@ static void *thread_burner(void *arg)
 static void test_getrusage_thread(void)
 {
     /* RUSAGE_THREAD is a Linux extension; absence is itself a finding. */
-    printf("--- getrusage(RUSAGE_THREAD) ---\n");
+    STATUS("--- getrusage(RUSAGE_THREAD) ---");
     struct rusage main0;
     if (getrusage(RUSAGE_THREAD, &main0) != 0) {
-        printf("  FAIL: getrusage(RUSAGE_THREAD): %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "getrusage(RUSAGE_THREAD): %s", strerror(errno));
         return;
     }
-    printf("  main before: utime=%ld.%06ld stime=%ld.%06ld\n",
+    STATUS("  main before: utime=%ld.%06ld stime=%ld.%06ld",
            (long)main0.ru_utime.tv_sec, (long)main0.ru_utime.tv_usec,
            (long)main0.ru_stime.tv_sec, (long)main0.ru_stime.tv_usec);
 
     struct rusage worker_after = {0};
     pthread_t worker;
     if (pthread_create(&worker, NULL, thread_burner, &worker_after) != 0) {
-        printf("  FAIL: pthread_create\n");
-        failures++; subtests++;
+        CHECK(0, "pthread_create");
         return;
     }
     pthread_join(worker, NULL);
 
     if (worker_after.ru_utime.tv_sec == -1) {
-        printf("  FAIL: worker getrusage(RUSAGE_THREAD): %s\n",
+        CHECK(0, "worker getrusage(RUSAGE_THREAD): %s",
                strerror((int)worker_after.ru_utime.tv_usec));
-        failures++; subtests++;
         return;
     }
-    printf("  worker after burn: utime=%ld.%06ld stime=%ld.%06ld\n",
+    STATUS("  worker after burn: utime=%ld.%06ld stime=%ld.%06ld",
            (long)worker_after.ru_utime.tv_sec, (long)worker_after.ru_utime.tv_usec,
            (long)worker_after.ru_stime.tv_sec, (long)worker_after.ru_stime.tv_usec);
 
@@ -166,19 +155,18 @@ static void test_getrusage_thread(void)
      * meaningful CPU. */
     struct rusage main1;
     if (getrusage(RUSAGE_THREAD, &main1) != 0) {
-        printf("  FAIL: main getrusage #2: %s\n", strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "main getrusage #2: %s", strerror(errno));
         return;
     }
     long main_delta_us = (tv_to_us(&main1.ru_utime) + tv_to_us(&main1.ru_stime))
                        - (tv_to_us(&main0.ru_utime) + tv_to_us(&main0.ru_stime));
-    printf("  main delta while worker burned: %ldus\n", main_delta_us);
+    STATUS("  main delta while worker burned: %ldus", main_delta_us);
     /* Valgrind serializes threads and deposits a couple of Windows
      * ticks (~15.6ms each) on the parent during pthread_join - flaky
      * in practice. Memory safety is what valgrind cares about; skip
      * this timing assertion under it. */
     if (RUNNING_ON_VALGRIND) {
-        printf("  SKIP: main thread idle check under valgrind\n");
+        STATUS("  SKIP: main thread idle check under valgrind");
     } else {
         CHECK(main_delta_us <= 30000,
               "main thread delta %ldus <= 30000 (idle while worker burned)",
@@ -198,7 +186,7 @@ int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
     hz = sysconf(_SC_CLK_TCK);
-    printf("HZ = %ld\n", hz);
+    STATUS("HZ = %ld", hz);
 
     struct sigaction sa = { .sa_handler = timeout };
     sigemptyset(&sa.sa_mask);
@@ -209,7 +197,5 @@ int main(void)
     test_getrusage_self();
     test_getrusage_thread();
 
-    printf("\n%d/%d subtests passed, %d failed\n",
-           subtests - failures, subtests, failures);
-    return failures == 0 ? 0 : 1;
+    TEST_REPORT();
 }

@@ -5,3 +5,17 @@
    ...
    fun:mincore
 }
+{
+   poll_bad_pointer_fd
+   Memcheck:Param
+   poll(ufds.fd)
+   ...
+   fun:test_poll_bad_pointer
+}
+{
+   poll_bad_pointer_revents
+   Memcheck:Param
+   poll(ufds.revents)
+   ...
+   fun:test_poll_bad_pointer
+}

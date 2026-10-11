@@ -27,14 +27,7 @@
 #include <string.h>
 #include <errno.h>
 
-static int failures;
-static int subtests;
-
-#define CHECK(cond, fmt, ...) do {                                  \
-    subtests++;                                                     \
-    if (cond) printf("  PASS: " fmt "\n", ##__VA_ARGS__);           \
-    else { printf("  FAIL: " fmt "\n", ##__VA_ARGS__); failures++; }\
-} while (0)
+#include "testutil.h"
 
 static char tmppath[64];
 static void cleanup(void) { if (tmppath[0]) unlink(tmppath); }
@@ -101,7 +94,5 @@ int main(void)
 
     close(fd);
 
-    printf("\n%d/%d subtests passed, %d failed\n",
-           subtests - failures, subtests, failures);
-    return failures == 0 ? 0 : 1;
+    TEST_REPORT();
 }

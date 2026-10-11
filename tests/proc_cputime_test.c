@@ -15,19 +15,8 @@
 #include <sys/types.h>
 #include <err.h>
 
-static int failures;
-static int subtests;
 static long hz;
-
-#define CHECK(cond, fmt, ...) do {                                  \
-    subtests++;                                                     \
-    if (cond) {                                                     \
-        printf("  PASS: " fmt "\n", ##__VA_ARGS__);                 \
-    } else {                                                        \
-        printf("  FAIL: " fmt "\n", ##__VA_ARGS__);                 \
-        failures++;                                                 \
-    }                                                               \
-} while (0)
+#include "testutil.h"
 
 /* Parse the stat-format file pointed to by path, extract utime (field 14)
  * and stime (field 15) - in clock ticks. Field indexing per proc(5). */
@@ -60,13 +49,17 @@ static int read_cpu_ticks(const char *path, unsigned long long *utime,
     return 0;
 }
 
+// Spin until this thread has consumed `want_ms` of CPU time. Wall-
+// clock gating would under-count under load (a parallel `make -j` run
+// shares CPU with other tests, so 200ms wall might be only 100ms CPU)
+// and break the downstream "CPU advanced by >= N" assertions.
 static void burn_cpu_ms(long want_ms)
 {
     struct timespec t0, t1;
-    clock_gettime(CLOCK_MONOTONIC, &t0);
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t0);
     for (;;) {
         for (volatile int i = 0; i < 100000; i++) { }
-        clock_gettime(CLOCK_MONOTONIC, &t1);
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t1);
         long ms = (t1.tv_sec - t0.tv_sec) * 1000
                 + (t1.tv_nsec - t0.tv_nsec) / 1000000;
         if (ms >= want_ms) break;
@@ -75,26 +68,22 @@ static void burn_cpu_ms(long want_ms)
 
 static void test_proc_self_stat(void)
 {
-    printf("--- /proc/self/stat ---\n");
+    STATUS("--- /proc/self/stat ---");
     unsigned long long u0, s0, u1, s1;
 
-    if (read_cpu_ticks("/proc/self/stat", &u0, &s0) != 0) {
-        printf("  FAIL: read+parse /proc/self/stat: %s\n", strerror(errno));
-        failures++; subtests++;
-        return;
-    }
-    printf("  before burn: utime=%llu stime=%llu (ticks)\n", u0, s0);
+    int r0 = read_cpu_ticks("/proc/self/stat", &u0, &s0);
+    CHECK(r0 == 0, "read+parse /proc/self/stat: %s", strerror(errno));
+    if (r0 != 0) return;
+    STATUS("  before burn: utime=%llu stime=%llu (ticks)", u0, s0);
 
     burn_cpu_ms(200);
 
-    if (read_cpu_ticks("/proc/self/stat", &u1, &s1) != 0) {
-        printf("  FAIL: read+parse #2: %s\n", strerror(errno));
-        failures++; subtests++;
-        return;
-    }
-    printf("  after  burn: utime=%llu stime=%llu (ticks)\n", u1, s1);
+    int r1 = read_cpu_ticks("/proc/self/stat", &u1, &s1);
+    CHECK(r1 == 0, "read+parse #2: %s", strerror(errno));
+    if (r1 != 0) return;
+    STATUS("  after  burn: utime=%llu stime=%llu (ticks)", u1, s1);
     long long delta = (long long)(u1 + s1) - (long long)(u0 + s0);
-    printf("  delta = %lld ticks (~%lld ms at HZ=%ld)\n",
+    STATUS("  delta = %lld ticks (~%lld ms at HZ=%ld)",
            delta, delta * 1000 / hz, hz);
 
     /* Want at least ~150ms of accrued CPU after 200ms burn. */
@@ -113,23 +102,19 @@ static void *thread_burner_main(void *arg)
     snprintf(path, sizeof(path), "/proc/self/task/%d/stat", *tid_out);
 
     unsigned long long u0, s0, u1, s1;
-    if (read_cpu_ticks(path, &u0, &s0) != 0) {
-        printf("  FAIL: read %s: %s\n", path, strerror(errno));
-        failures++; subtests++;
-        return NULL;
-    }
-    printf("  thread before: utime=%llu stime=%llu\n", u0, s0);
+    int r0 = read_cpu_ticks(path, &u0, &s0);
+    CHECK(r0 == 0, "read %s: %s", path, strerror(errno));
+    if (r0 != 0) return NULL;
+    STATUS("  thread before: utime=%llu stime=%llu", u0, s0);
 
     burn_cpu_ms(200);
 
-    if (read_cpu_ticks(path, &u1, &s1) != 0) {
-        printf("  FAIL: read #2 %s: %s\n", path, strerror(errno));
-        failures++; subtests++;
-        return NULL;
-    }
-    printf("  thread after:  utime=%llu stime=%llu\n", u1, s1);
+    int r1 = read_cpu_ticks(path, &u1, &s1);
+    CHECK(r1 == 0, "read #2 %s: %s", path, strerror(errno));
+    if (r1 != 0) return NULL;
+    STATUS("  thread after:  utime=%llu stime=%llu", u1, s1);
     long long delta = (long long)(u1 + s1) - (long long)(u0 + s0);
-    printf("  delta = %lld ticks (~%lld ms)\n", delta, delta * 1000 / hz);
+    STATUS("  delta = %lld ticks (~%lld ms)", delta, delta * 1000 / hz);
 
     long min_ticks = 150 * hz / 1000;
     CHECK(delta >= min_ticks,
@@ -140,15 +125,12 @@ static void *thread_burner_main(void *arg)
 
 static void test_proc_task_stat(void)
 {
-    printf("--- /proc/self/task/<tid>/stat ---\n");
+    STATUS("--- /proc/self/task/<tid>/stat ---");
     pthread_t worker;
     pid_t tid = 0;
     int rc = pthread_create(&worker, NULL, thread_burner_main, &tid);
-    if (rc != 0) {
-        printf("  FAIL: pthread_create: %s\n", strerror(rc));
-        failures++; subtests++;
-        return;
-    }
+    CHECK(rc == 0, "pthread_create: %s", strerror(rc));
+    if (rc != 0) return;
     pthread_join(worker, NULL);
     /* Did the per-thread directory exist and parse? Already accounted
      * for inside the thread function via CHECK. Add a separate sanity
@@ -162,30 +144,27 @@ static void test_per_thread_isolation(void)
     /* Verify that one thread burning CPU does NOT bump another thread's
      * stat - i.e., the per-thread view is actually per-thread, not a
      * process-wide alias. */
-    printf("--- per-thread isolation ---\n");
+    STATUS("--- per-thread isolation ---");
     pid_t my_tid = (pid_t)syscall(SYS_gettid);
     char my_path[64];
     snprintf(my_path, sizeof(my_path), "/proc/self/task/%d/stat", (int)my_tid);
 
     unsigned long long mu0, ms0, mu1, ms1;
-    if (read_cpu_ticks(my_path, &mu0, &ms0) != 0) {
-        printf("  FAIL: read %s: %s\n", my_path, strerror(errno));
-        failures++; subtests++;
-        return;
-    }
+    int r0 = read_cpu_ticks(my_path, &mu0, &ms0);
+    CHECK(r0 == 0, "read %s: %s", my_path, strerror(errno));
+    if (r0 != 0) return;
 
     pthread_t worker;
     pid_t worker_tid = 0;
     pthread_create(&worker, NULL, thread_burner_main, &worker_tid);
     pthread_join(worker, NULL);
 
-    if (read_cpu_ticks(my_path, &mu1, &ms1) != 0) {
-        printf("  FAIL: read #2 %s: %s\n", my_path, strerror(errno));
-        failures++; subtests++;
-        return;
-    }
+    int r1 = read_cpu_ticks(my_path, &mu1, &ms1);
+    CHECK(r1 == 0, "read #2 %s: %s", my_path, strerror(errno));
+    if (r1 != 0) return;
+
     long long my_delta = (long long)(mu1 + ms1) - (long long)(mu0 + ms0);
-    printf("  main thread delta while worker burned: %lld ticks\n", my_delta);
+    STATUS("  main thread delta while worker burned: %lld ticks", my_delta);
     /* Main thread was idle in pthread_join; should have accumulated near
      * zero ticks. Allow a small slack for scheduler overhead. */
     long max_ticks = 20 * hz / 1000; /* 20 ms */
@@ -206,7 +185,7 @@ int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
     hz = sysconf(_SC_CLK_TCK);
-    printf("HZ = %ld\n", hz);
+    STATUS("HZ = %ld", hz);
 
     struct sigaction sa = { .sa_handler = timeout };
     sigemptyset(&sa.sa_mask);
@@ -217,7 +196,5 @@ int main(void)
     test_proc_task_stat();
     test_per_thread_isolation();
 
-    printf("\n%d/%d subtests passed, %d failed\n",
-           subtests - failures, subtests, failures);
-    return failures == 0 ? 0 : 1;
+    TEST_REPORT();
 }

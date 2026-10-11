@@ -7,11 +7,11 @@
 #
 set -eu
 
-if [[ ! -x ./sys_badalign ]]; then
-    echo "sys_badalign not built"
+if [[ ! -x ./sys_badalign_test ]]; then
+    echo "sys_badalign_test not built"
     exit 1
 fi
 
-./sys_badalign
+./sys_badalign_test
 
 exit 0

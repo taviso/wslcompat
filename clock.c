@@ -90,6 +90,9 @@ static int handle_process_cputime(clockid_t id, int flags,
     long long now_ns;
     long long target_ns;
 
+    if (req->tv_sec < 0 || req->tv_nsec < 0 || req->tv_nsec >= 1000000000L)
+        return EINVAL;
+
     if ((rc = rusage_cpu_ns(RUSAGE_SELF, &now_ns)) != 0)
         return rc;
 
@@ -243,17 +246,24 @@ static int encoded_cpuclock_who(clockid_t clockid)
 int clock_gettime(clockid_t clockid, struct timespec *tp)
 {
     long long ns;
+    int who;
 
     if (wslcompat_passthru_self())
         return sym_next(clock_gettime, clockid, tp);
 
-    int who = encoded_cpuclock_who(clockid);
+    who = encoded_cpuclock_who(clockid);
 
     if (who >= 0) {
+        HIDE_NONNULL(tp);
+
         wsldbg("encoded cpuclockid %d -> %d", clockid, who);
 
         if (rusage_cpu_ns(who, &ns) != 0)
             return -1;
+
+        if (tp == NULL)
+            return errno = EFAULT, -1;
+
         ns_to_ts(ns, tp);
         return 0;
     }
@@ -262,5 +272,6 @@ int clock_gettime(clockid_t clockid, struct timespec *tp)
         if (gettime_dispatch[i].id == clockid)
             return gettime_dispatch[i].fn(clockid, tp);
     }
+
     return sym_next(clock_gettime, clockid, tp);
 }

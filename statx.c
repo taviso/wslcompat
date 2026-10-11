@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <sys/syscall.h>
 #include <sys/xattr.h>
 #include <linux/stat.h>
 #include <errno.h>
@@ -13,9 +14,12 @@
 #include <stdint.h>
 #include <limits.h>
 
+#include <stdatomic.h>
+
 #include "shim.h"
 #include "logging.h"
 #include "tunables.h"
+#include "internal.h"
 
 #ifndef STATX_ATTR_MOUNT_ROOT
 # define STATX_ATTR_MOUNT_ROOT 0x2000
@@ -26,32 +30,46 @@
 
 SHIM_INIT(statx);
 
-// A cached file descriptor to /proc/self/mountinfo
-static int mount_fd = -1;
+// A cached file descriptor to /proc/self/mountinfo. -2 = uninitialised,
+// -1 = open failed, >= 0 = live fd; see internal_fd
+static atomic_int mount_fd = -2;
+
+static void __attribute__((constructor)) init(void) {
+    wslcompat_register_internal_fd(&mount_fd);
+}
 
 static void __attribute__((destructor)) fini(void) {
-    if (mount_fd != -1)
-        close(mount_fd);
+    int fd = atomic_load(&mount_fd);
+    if (fd >= 0)
+        syscall(SYS_close, fd);
 }
 
 static uint64_t lookup_mnt_id(uint32_t maj, uint32_t min) {
     char buf[8192];
     char *curr = buf;
     ssize_t n;
+    int fd = atomic_load(&mount_fd);
 
-    // Thread-safe lazy open.
-    if (__builtin_expect(__sync_add_and_fetch(&mount_fd, 0) == -1, 0)) {
-        int fd = open("/proc/self/mountinfo", O_RDONLY | O_CLOEXEC);
-
-        if (fd == -1) return 0;
-
-        if (!__sync_bool_compare_and_swap(&mount_fd, -1, fd)) {
-            close(fd);
+    // Thread-safe lazy open. The loser of the CAS just closes its dup
+    // and uses the winner's fd.
+    if (__builtin_expect(fd < -1, 0)) {
+        int opened = syscall(SYS_open, "/proc/self/mountinfo", O_RDONLY | O_CLOEXEC);
+        int expected = -2;
+        if (opened < 0) {
+            atomic_store(&mount_fd, -1);
+            return 0;
         }
+        if (!atomic_compare_exchange_strong(&mount_fd, &expected, opened)) {
+            syscall(SYS_close, opened);
+        }
+        fd = atomic_load(&mount_fd);
     }
 
+    if (fd < 0)
+        return 0;
+
     // pread is atomic and does not share an offset with other threads.
-    if ((n = pread(mount_fd, buf, sizeof(buf) - 1, 0)) <= 0)
+    if ((n = syscall(SYS_pread64, fd, buf, sizeof(buf) - 1, 0)) <= 0)
         return 0;
 
     buf[n] = '\0';

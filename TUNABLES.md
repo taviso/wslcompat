@@ -61,10 +61,15 @@ Integer log level. Higher is more verbose; output goes to `/dev/tty`.
   * `1` - also warnings
   * `2` - also info
   * `3` - also debug
+  * `4` - also trace (per-call tracing, very noisy)
 
 ```
 $ setfattr -n user.wslcompat.debug -v 2 $(which program)
 ```
+
+> Note: If you want to capture the log output in a file, use `script`, e.g.
+> `script -c program /dev/stdout > logfile.txt`
+> Alternatively, you can also set `user.wslcompat.logfile`.
 
 ### `argv0`
 
@@ -114,6 +119,18 @@ Set to `0` to disable handler dispatch entirely and pass every open straight thr
 
 ```
 $ setfattr -n user.wslcompat.redirect -v 0 $(which program)
+```
+
+### `syscall`
+
+Comma-separated list of syscalls to redirect through their polyfill when
+called via `syscall()`.
+
+By default `syscall()` is a pure passthrough to the kernel, bypassing all
+polyfills.
+
+```
+$ setfattr -n user.wslcompat.syscall -v "execve,mmap" $(which program)
 ```
 
 ### `mmap_min_addr`

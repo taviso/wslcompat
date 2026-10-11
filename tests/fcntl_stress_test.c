@@ -7,35 +7,26 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
+#include "testutil.h"
 
 static const char *tmp_path = "/tmp/fcntl_stress_test";
-static int failures = 0;
 
 #define ASSERT_LOCK_SUCCESS(fd, type, start, len, msg) do { \
     struct flock fl = { .l_type = (type), .l_whence = SEEK_SET, .l_start = (start), .l_len = (len) }; \
-    if (fcntl((fd), F_SETLK, &fl) == -1) { \
-        printf("  [FAIL] %s: Expected success, but got error: %s\n", (msg), strerror(errno)); \
-        failures++; \
-    } else { \
-        printf("  [PASS] %s: Success.\n", (msg)); \
-    } \
+    int _res = fcntl((fd), F_SETLK, &fl); \
+    int _err = errno; \
+    CHECK(_res != -1, "%s: Expected success, got res=%d err=%s", (msg), _res, strerror(_err)); \
 } while(0)
 
 #define ASSERT_LOCK_BLOCKED(fd, type, start, len, msg) do { \
     struct flock fl = { .l_type = (type), .l_whence = SEEK_SET, .l_start = (start), .l_len = (len) }; \
-    if (fcntl((fd), F_SETLK, &fl) == 0) { \
-        printf("  [FAIL] %s: Expected blockage, but got success!\n", (msg)); \
-        failures++; \
-    } else if (errno == EAGAIN || errno == EACCES) { \
-        printf("  [PASS] %s: Blocked correctly.\n", (msg)); \
-    } else { \
-        printf("  [FAIL] %s: Expected EAGAIN, but got error: %s\n", (msg), strerror(errno)); \
-        failures++; \
-    } \
+    int _res = fcntl((fd), F_SETLK, &fl); \
+    int _err = errno; \
+    CHECK(_res == -1 && (_err == EAGAIN || _err == EACCES), "%s: Expected EAGAIN/EACCES, got res=%d err=%s", (msg), _res, strerror(_err)); \
 } while(0)
 
 void run_cross_process_tests(int fd) {
-    printf("--- Stage 1: Cross-Process Enforcement ---\n");
+    STATUS("--- Stage 1: Cross-Process Enforcement ---");
     
     struct flock fl = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 100, .l_len = 10 };
     fcntl(fd, F_SETLK, &fl);
@@ -48,18 +39,19 @@ void run_cross_process_tests(int fd) {
         ASSERT_LOCK_BLOCKED(fd2, F_WRLCK, 105, 10, "Overlapping range [105, 115]");
         ASSERT_LOCK_BLOCKED(fd2, F_WRLCK, 95, 10,  "Overlapping range [95, 105]");
         ASSERT_LOCK_SUCCESS(fd2, F_RDLCK, 250, 10, "Unrelated Read range [250, 260]");
-        _exit(failures > 0 ? 1 : 0);
+        _exit(wslcompat_test_failures > 0 ? 1 : 0);
     }
     int status;
     wait(&status);
-    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) failures++;
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0, "Stage 1 child process exited successfully");
     
     fl.l_type = F_UNLCK;
     fcntl(fd, F_SETLK, &fl);
 }
 
 void run_intra_process_ofd_tests(int fd) {
-    printf("\n--- Stage 2: Same Process, Different OFD (open() again) ---\n");
+    STATUS("");
+    STATUS("--- Stage 2: Same Process, Different OFD (open() again) ---");
     int fd2 = open(tmp_path, O_RDWR);
 
     struct flock fl = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 100, .l_len = 10 };
@@ -73,7 +65,8 @@ void run_intra_process_ofd_tests(int fd) {
 }
 
 void run_reporting_tests(int fd) {
-    printf("\n--- Stage 3: F_GETLK Reporting Accuracy ---\n");
+    STATUS("");
+    STATUS("--- Stage 3: F_GETLK Reporting Accuracy ---");
     
     struct flock fl = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 1234, .l_len = 5678 };
     fcntl(fd, F_SETLK, &fl);
@@ -84,29 +77,26 @@ void run_reporting_tests(int fd) {
         struct flock query = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 0 };
         fcntl(fd2, F_GETLK, &query);
         
-        printf("  Conflicting lock reported by kernel:\n");
-        printf("    Type: %s\n", (query.l_type == F_WRLCK ? "WRITE" : "READ"));
-        printf("    Start: %lld (Expected: 1234)\n", (long long)query.l_start);
-        printf("    Len: %lld (Expected: 5678)\n", (long long)query.l_len);
-        printf("    PID: %d (Expected: %d)\n", query.l_pid, getppid());
+        STATUS("  Conflicting lock reported by kernel:");
+        STATUS("    Type: %s", (query.l_type == F_WRLCK ? "WRITE" : "READ"));
+        STATUS("    Start: %lld (Expected: 1234)", (long long)query.l_start);
+        STATUS("    Len: %lld (Expected: 5678)", (long long)query.l_len);
+        STATUS("    PID: %d (Expected: %d)", query.l_pid, getppid());
 
-        if (query.l_start != 1234 || query.l_len != 5678 || query.l_pid != getppid()) {
-            printf("  [FAIL] Reporting mismatch detected.\n");
-            _exit(1);
-        }
-        printf("  [PASS] Reporting accuracy verified.\n");
-        _exit(0);
+        CHECK(query.l_start == 1234 && query.l_len == 5678 && query.l_pid == getppid(), "Reporting accuracy verified");
+        _exit(wslcompat_test_failures > 0 ? 1 : 0);
     }
     int status;
     wait(&status);
-    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) failures++;
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0, "Stage 3 child process exited successfully");
 
     fl.l_type = F_UNLCK;
     fcntl(fd, F_SETLK, &fl);
 }
 
 void run_merging_splitting_tests(int fd) {
-    printf("\n--- Stage 4: Merging and Splitting ---\n");
+    STATUS("");
+    STATUS("--- Stage 4: Merging and Splitting ---");
 
     struct flock fl1 = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 100, .l_len = 10 };
     struct flock fl2 = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 110, .l_len = 10 };
@@ -118,18 +108,15 @@ void run_merging_splitting_tests(int fd) {
         int fd2 = open(tmp_path, O_RDWR);
         struct flock q = { .l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 105, .l_len = 1 };
         fcntl(fd2, F_GETLK, &q);
-        printf("  Merged range report: Start=%lld, Len=%lld\n", (long long)q.l_start, (long long)q.l_len);
-        if (q.l_start != 100 || q.l_len != 20) {
-             printf("  [FAIL] Merge reporting mismatch.\n");
-             _exit(1);
-        }
-        _exit(0);
+        STATUS("  Merged range report: Start=%lld, Len=%lld", (long long)q.l_start, (long long)q.l_len);
+        CHECK(q.l_start == 100 && q.l_len == 20, "Merge reporting match");
+        _exit(wslcompat_test_failures > 0 ? 1 : 0);
     }
     int status;
     wait(&status);
-    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) failures++;
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0, "Stage 4 merge child process exited successfully");
 
-    printf("  Unlocking middle [105, 115]...\n");
+    STATUS("  Unlocking middle [105, 115]...");
     struct flock unl = { .l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 105, .l_len = 10 };
     fcntl(fd, F_SETLK, &unl);
 
@@ -144,19 +131,16 @@ void run_merging_splitting_tests(int fd) {
         fcntl(fd2, F_GETLK, &q2);
         fcntl(fd2, F_GETLK, &q3);
 
-        printf("  Split check: [100, 105] %s, [105, 110] %s, [115, 120] %s\n",
+        STATUS("  Split check: [100, 105] %s, [105, 110] %s, [115, 120] %s",
                (q1.l_type != F_UNLCK ? "LOCKED" : "UNLOCKED"),
                (q2.l_type != F_UNLCK ? "LOCKED" : "UNLOCKED"),
                (q3.l_type != F_UNLCK ? "LOCKED" : "UNLOCKED"));
         
-        if (q1.l_type == F_UNLCK || q2.l_type != F_UNLCK || q3.l_type == F_UNLCK) {
-            printf("  [FAIL] Split verification failed.\n");
-            _exit(1);
-        }
-        _exit(0);
+        CHECK(q1.l_type != F_UNLCK && q2.l_type == F_UNLCK && q3.l_type != F_UNLCK, "Split verification");
+        _exit(wslcompat_test_failures > 0 ? 1 : 0);
     }
     wait(&status);
-    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) failures++;
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0, "Stage 4 split child process exited successfully");
 }
 
 int main() {
@@ -171,10 +155,5 @@ int main() {
     close(fd);
     unlink(tmp_path);
 
-    if (failures > 0) {
-        printf("\nTOTAL FAILURES: %d\n", failures);
-        return 1;
-    }
-    printf("\nALL TESTS PASSED.\n");
-    return 0;
+    TEST_REPORT();
 }

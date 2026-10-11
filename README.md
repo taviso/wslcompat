@@ -102,7 +102,10 @@ Type `make test` to run them.
 - `clock_gettime()` rejects the encoded clockids.
 - `SO_REUSEPORT` is accepted, but unimplemented.
 - `O_TMPFILE` is unimplemented.
+- `copy_file_range()` is unimplemented.
+- `close_range()` is unimplemented.
 - `mmap_min_addr` sysctl is not available.
+- `epoll_pwait2` is unimplemented.
 
 ## Tunables
 
@@ -156,13 +159,17 @@ We could polyfill these in future.
 
 - `kcmp` - For the `pid1`==`pid2` and `KCMP_FILE` case, we can use toggle flags with
   `F_GETFL`/`F_SETFL` to see if a file is the same.
+- `setsockopt(IPV6_TCLASS)` is rejected with `EPERM` (DSCP marking; absorb-only).
 - `SO_TIMESTAMP` on `AF_UNIX` - Needs `setsockopt`/`getsockopt` to track per-fd
   state and `recvmsg` to splice an `SCM_TIMESTAMP` cmsg captured around the
   underlying recv.
 - `setitimer(ITIMER_PROF)` and `setitimer(ITIMER_VIRTUAL)` - WSL1 rejects both
   with `EINVAL`, may require a helper thread.
 - `linkat` on an `O_TMPFILE` fd
+- `clone3` -- WSL1 returns `ENOSYS`.
+- `PTRACE_SYSCALL` can't cancel or modify a syscall on WSL1.
 
 ### Features
 
 - Path redirection via a `user.wslcompat.redir` tunable?
+- musl support -- currently glibc-only.

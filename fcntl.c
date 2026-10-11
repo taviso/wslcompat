@@ -13,6 +13,7 @@
 #include "tunables.h"
 #include "logging.h"
 #include "shim.h"
+#include "synth.h"
 
 SHIM_INIT(fcntl);
 
@@ -93,6 +94,7 @@ static int flock_status_query(int fd, struct flock *fl)
 
 static int fcntl_lock_shim(int fd, int cmd, struct flock *fl)
 {
+    int passthru;
     int operation;
     struct flock hybrid = {
         .l_whence = SEEK_SET,
@@ -100,6 +102,12 @@ static int fcntl_lock_shim(int fd, int cmd, struct flock *fl)
         .l_type = fl->l_type,
         .l_len = 0,
     };
+
+    // Check if this synthetic fd has a passthru fd for operations.
+    if ((passthru = wslcompat_synth_passthru(fd, SYNTH_OP_IO)) >= 0) {
+        wsldbg("fd=%d -> passthru=%d", fd, passthru);
+        fd = passthru;
+    }
 
     wsldbg("fd=%d cmd=%d l_type=%d l_start=%lld l_len=%lld",
             fd, cmd, fl->l_type, (long long) fl->l_start, (long long) fl->l_len);
@@ -123,25 +131,29 @@ static int fcntl_lock_shim(int fd, int cmd, struct flock *fl)
         }
     }
 
-    // Enforce via flock() first; if that fails (contention with LOCK_NB,
-    // EINTR on the blocking variants), bail out before mutating the POSIX
-    // mirror so nothing partial is left behind.
+    // Enforce via flock().
     if (flock(fd, operation) == -1) {
         wsldbg("flock(fd=%d, op=0x%x) failed: %m", fd, operation);
         return -1;
     }
 
-    // Mirror as POSIX so non-shimmed consumers calling raw fcntl(F_GETLK)
-    // can still see our locks. Best-effort: real enforcement is via flock().
+    // Mirror as a POSIX lock, this is just a best-effort the real enforcement is via flock().
     if (sym_next(fcntl, fd, F_SETLK, &hybrid) == -1) {
         wsldbg("POSIX mirror fd=%d l_type=%d failed: %m", fd, hybrid.l_type);
     }
     return 0;
 }
 
-static int fcntl_common(int fd, int cmd, void *arg)
+int fcntl(int fd, int cmd, ...)
 {
-    if (wslcompat_passthru("fcntl"))
+    va_list ap;
+    void *arg;
+
+    va_start(ap, cmd);
+    arg = va_arg(ap, void *);
+    va_end(ap);
+
+    if (wslcompat_passthru_self())
         return sym_next(fcntl, fd, cmd, arg);
 
     switch (cmd) {
@@ -154,29 +166,24 @@ static int fcntl_common(int fd, int cmd, void *arg)
             return fcntl_lock_shim(fd, cmd, arg);
     }
 
-    return sym_next(fcntl, fd, cmd, arg);
+    // F_GETFL/F_SETFL: F_SETFL on an O_PATH fd clobbers the O_PATH bit on
+    // WSL1, so don't permit that on synthetic fds.
+    switch (cmd) {
+        case F_GETFL:
+        case F_SETFL:
+            SYNTH_DISPATCH_EXCL(fcntl, fd, cmd, arg);
+            break;
+    }
+
+    int r = sym_next(fcntl, fd, cmd, arg);
+
+    // All other cmds: if the kernel returns EBADF, this might be a synthetic fd.
+    if (r == -1 && errno == EBADF) {
+        SYNTH_DISPATCH(fcntl, fd, cmd, arg);
+        return r;
+    }
+
+    return r;
 }
 
-int fcntl(int fd, int cmd, ...)
-{
-    va_list ap;
-    void *arg;
-
-    va_start(ap, cmd);
-    arg = va_arg(ap, void *);
-    va_end(ap);
-
-    return fcntl_common(fd, cmd, arg);
-}
-
-int fcntl64(int fd, int cmd, ...)
-{
-    va_list ap;
-    void *arg;
-
-    va_start(ap, cmd);
-    arg = va_arg(ap, void *);
-    va_end(ap);
-
-    return fcntl_common(fd, cmd, arg);
-}
+int fcntl64(int fd, int cmd, ...) __attribute__((alias("fcntl")));

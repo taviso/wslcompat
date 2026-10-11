@@ -1,12 +1,15 @@
 #define _GNU_SOURCE
 #include <sys/socket.h>
-#include <sys/syscall.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
 
+#include "shim.h"
 #include "tunables.h"
 #include "logging.h"
+
+SHIM_INIT(getsockopt);
+
 
 int getsockopt(int sockfd,
                int level,
@@ -14,25 +17,26 @@ int getsockopt(int sockfd,
                void *optval,
                socklen_t *optlen)
 {
+    int result;
     struct sockaddr sa = {0};
     socklen_t len = sizeof(sa);
 
-    if (wslcompat_passthru_self())
-        return syscall(SYS_getsockopt, sockfd, level, optname, optval, optlen);
-
-    // Translate SO_REUSEPORT to SO_REUSEADDR (Windows semantics allow port
-    // sharing via SO_REUSEADDR).
-    if (level == SOL_SOCKET && optname == SO_REUSEPORT) {
-        wsldbg("fd=%d: reading SO_REUSEPORT via SO_REUSEADDR", sockfd);
-        optname = SO_REUSEADDR;
-    }
-
     // Pass through the request.
-    int result = syscall(SYS_getsockopt, sockfd, level, optname, optval, optlen);
+    result = sym_next(getsockopt, sockfd, level, optname, optval, optlen);
 
     // If it worked, we're good.
-    if (result != -1 || errno != EINVAL)
+    if (result != -1 || wslcompat_passthru_self())
         return result;
+
+    // Test if it's an error we handle.
+    if (errno != EINVAL && errno != ENOPROTOOPT)
+        return result;
+
+    // Translate SO_REUSEPORT (Windows allows port sharing via SO_REUSEADDR).
+    if (errno == ENOPROTOOPT && level == SOL_SOCKET && optname == SO_REUSEPORT) {
+        wsldbg("fd=%d: reading SO_REUSEPORT via SO_REUSEADDR", sockfd);
+        return sym_next(getsockopt, sockfd, level, SO_REUSEADDR, optval, optlen);
+    }
 
     // We only handle sockets.
     if (level != SOL_SOCKET || !optlen || !optval)

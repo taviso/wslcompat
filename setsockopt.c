@@ -14,8 +14,11 @@ int setsockopt(int sockfd, int level, int optname,
     if (wslcompat_passthru_self())
         return sym_next(setsockopt, sockfd, level, optname, optval, optlen);
 
-    // Translate SO_REUSEPORT to SO_REUSEADDR (Windows semantics allow port
-    // sharing via SO_REUSEADDR).
+    wsltrace("sockfd=%d, level=%d, optname=%d", sockfd, level, optname);
+
+    // WSL1 BUG: setsockopt(SO_REUSEPORT) actually succeeds natively, but silently fails
+    // to provide port-sharing behavior. Therefore, we cannot use a canary check here.
+    // We must unconditionally translate it to SO_REUSEADDR (which Windows uses for port sharing).
     if (level == SOL_SOCKET && optname == SO_REUSEPORT) {
         wsldbg("fd=%d: translating SO_REUSEPORT to SO_REUSEADDR", sockfd);
         optname = SO_REUSEADDR;

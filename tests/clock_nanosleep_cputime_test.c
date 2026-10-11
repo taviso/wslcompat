@@ -16,18 +16,7 @@
 static volatile sig_atomic_t alarm_fired;
 static void alarm_handler(int sig) { (void)sig; alarm_fired = 1; }
 
-static int failures;
-static int subtests;
-
-#define CHECK(cond, fmt, ...) do {                                  \
-    subtests++;                                                     \
-    if (cond) {                                                     \
-        printf("  PASS: " fmt "\n", ##__VA_ARGS__);                 \
-    } else {                                                        \
-        printf("  FAIL: " fmt "\n", ##__VA_ARGS__);                 \
-        failures++;                                                 \
-    }                                                               \
-} while (0)
+#include "testutil.h"
 
 struct clock_entry {
     clockid_t id;
@@ -61,21 +50,17 @@ static void test_getres_gettime(struct clock_entry *c)
     struct timespec res, now;
 
     if (clock_getres(c->id, &res) != 0) {
-        printf("  FAIL: %s: clock_getres: %s\n", c->name, strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "%s: clock_getres: %s", c->name, strerror(errno));
         return;
     }
-    subtests++;
     CHECK(valid_timespec(&res),
           "%s: clock_getres = %ld.%09ld",
           c->name, (long)res.tv_sec, res.tv_nsec);
 
     if (clock_gettime(c->id, &now) != 0) {
-        printf("  FAIL: %s: clock_gettime: %s\n", c->name, strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "%s: clock_gettime: %s", c->name, strerror(errno));
         return;
     }
-    subtests++;
     CHECK(valid_timespec(&now) && (now.tv_sec != 0 || now.tv_nsec != 0),
           "%s: clock_gettime = %ld.%09ld",
           c->name, (long)now.tv_sec, now.tv_nsec);
@@ -85,7 +70,7 @@ static void test_nanosleep_abstime_past(struct clock_entry *c)
 {
     struct timespec past = { 0, 0 };
     alarm_fired = 0;
-    alarm(1);
+    alarm(2);
     int rc = clock_nanosleep(c->id, TIMER_ABSTIME, &past, NULL);
     alarm(0);
 
@@ -106,7 +91,7 @@ static void test_nanosleep_relative_short(void)
      * our per-test alarm. */
     struct timespec req = { 0, 1000000L }; /* 1 ms */
     alarm_fired = 0;
-    alarm(1);
+    alarm(2);
     int rc = clock_nanosleep(CLOCK_MONOTONIC, 0, &req, NULL);
     alarm(0);
     CHECK(rc == 0,
@@ -119,16 +104,14 @@ static void test_nanosleep_abstime_future(void)
     /* MONOTONIC + 5ms absolute: should block briefly then return 0. */
     struct timespec t;
     if (clock_gettime(CLOCK_MONOTONIC, &t) != 0) {
-        printf("  FAIL: nanosleep_abstime_future: gettime: %s\n",
-               strerror(errno));
-        failures++; subtests++;
+        CHECK(0, "nanosleep_abstime_future: gettime: %s", strerror(errno));
         return;
     }
     t.tv_nsec += 5000000L;
     if (t.tv_nsec >= 1000000000L) { t.tv_sec++; t.tv_nsec -= 1000000000L; }
 
     alarm_fired = 0;
-    alarm(1);
+    alarm(2);
     int rc = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
     alarm(0);
 
@@ -146,18 +129,20 @@ static void test_getcpuclockid_self(void)
     clockid_t cid;
     int rc = clock_getcpuclockid(0, &cid);
     if (rc != 0) {
-        printf("  FAIL: clock_getcpuclockid(0): %s\n", strerror(rc));
-        failures++; subtests++;
+        CHECK(0, "clock_getcpuclockid(0): %s", strerror(rc));
         return;
     }
-    subtests++;
-    printf("  PASS: clock_getcpuclockid(0) -> 0x%x\n", (unsigned)cid);
+    CHECK(1, "clock_getcpuclockid(0) -> 0x%x", (unsigned)cid);
 
     struct timespec ts;
     int rc2 = clock_gettime(cid, &ts);
     CHECK(rc2 == 0 && valid_timespec(&ts),
           "clock_gettime(self cpuclockid) -> rc=%d ts=%ld.%09ld",
           rc2, (long)ts.tv_sec, ts.tv_nsec);
+
+    int rc3 = clock_gettime(cid, NULL);
+    CHECK(rc3 == -1 && errno == EFAULT,
+          "clock_gettime(self cpuclockid, NULL) -> rc=%d errno=%d (expected EFAULT)", rc3, errno);
 }
 
 static void test_getcpuclockid_getpid(void)
@@ -165,12 +150,10 @@ static void test_getcpuclockid_getpid(void)
     clockid_t cid;
     int rc = clock_getcpuclockid(getpid(), &cid);
     if (rc != 0) {
-        printf("  FAIL: clock_getcpuclockid(getpid()): %s\n", strerror(rc));
-        failures++; subtests++;
+        CHECK(0, "clock_getcpuclockid(getpid()): %s", strerror(rc));
         return;
     }
-    subtests++;
-    printf("  PASS: clock_getcpuclockid(getpid()) -> 0x%x\n", (unsigned)cid);
+    CHECK(1, "clock_getcpuclockid(getpid()) -> 0x%x", (unsigned)cid);
 
     struct timespec ts;
     int rc2 = clock_gettime(cid, &ts);
@@ -184,12 +167,10 @@ static void test_pthread_getcpuclockid(void)
     clockid_t cid;
     int rc = pthread_getcpuclockid(pthread_self(), &cid);
     if (rc != 0) {
-        printf("  FAIL: pthread_getcpuclockid: %s\n", strerror(rc));
-        failures++; subtests++;
+        CHECK(0, "pthread_getcpuclockid: %s", strerror(rc));
         return;
     }
-    subtests++;
-    printf("  PASS: pthread_getcpuclockid(self) -> 0x%x\n", (unsigned)cid);
+    CHECK(1, "pthread_getcpuclockid(self) -> 0x%x", (unsigned)cid);
 
     struct timespec ts;
     int rc2 = clock_gettime(cid, &ts);
@@ -205,6 +186,27 @@ static void test_invalid_clockid(void)
     int rc = clock_gettime((clockid_t)0xdeadbeef, &ts);
     CHECK(rc == -1 && errno == EINVAL,
           "clock_gettime(bogus) -> rc=%d errno=%d", rc, errno);
+}
+
+static void test_nanosleep_invalid_timespec(void)
+{
+    /* Invalid timespec (tv_nsec >= 1e9) should be rejected with EINVAL. */
+    struct timespec req = { 0, 1000000000L };
+    int rc = clock_nanosleep(CLOCK_PROCESS_CPUTIME_ID, 0, &req, NULL);
+    CHECK(rc == EINVAL,
+          "CLOCK_PROCESS_CPUTIME_ID: nanosleep with tv_nsec=1e9 -> %d (expected %d/EINVAL)", rc, EINVAL);
+
+    /* Invalid timespec (tv_nsec < 0) should be rejected with EINVAL. */
+    struct timespec req2 = { 0, -1 };
+    rc = clock_nanosleep(CLOCK_PROCESS_CPUTIME_ID, 0, &req2, NULL);
+    CHECK(rc == EINVAL,
+          "CLOCK_PROCESS_CPUTIME_ID: nanosleep with tv_nsec=-1 -> %d (expected %d/EINVAL)", rc, EINVAL);
+
+    /* Invalid timespec (tv_sec < 0) should be rejected with EINVAL. */
+    struct timespec req3 = { -1, 0 };
+    rc = clock_nanosleep(CLOCK_PROCESS_CPUTIME_ID, 0, &req3, NULL);
+    CHECK(rc == EINVAL,
+          "CLOCK_PROCESS_CPUTIME_ID: nanosleep with tv_sec=-1 -> %d (expected %d/EINVAL)", rc, EINVAL);
 }
 
 int main(void)
@@ -251,8 +253,7 @@ int main(void)
 
     printf("=== misc ===\n");
     test_invalid_clockid();
+    test_nanosleep_invalid_timespec();
 
-    printf("\n%d/%d subtests passed, %d failed\n",
-           subtests - failures, subtests, failures);
-    return failures == 0 ? 0 : 1;
+    TEST_REPORT();
 }
