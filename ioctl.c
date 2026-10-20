@@ -76,7 +76,6 @@ int ioctl(int fd, unsigned long op, ...)
             case TCSETS:
             case TCSETSW:
             case TCSETSF:
-            case TCGETS2:
             case TCSETS2:
             case TCSETSW2:
             case TCSETSF2:

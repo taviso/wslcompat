@@ -64,7 +64,7 @@ XPASS = shm_test inode_test flock_vs_fcntl_test flock_standard_test            \
         poll_signal_eintr_test synth_fork_release_test                         \
         synth_fork_pause_test tty_lock_test internal_stress_test               \
         tc_wrappers_test logging_test open_tmpfile_fortify_test                \
-        fstat64_synth_test
+        fstat64_synth_test tcgets2_wrap_test
 
 # Known regressions: pass without the shim, fail with it.
 XFIXME = clone_files_corrupt_test clone_vm_slots_test                          \
